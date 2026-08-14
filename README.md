@@ -1837,6 +1837,94 @@ Before considering the build complete, verify that the application correctly han
 
 The result should feel like a professionally built HackVerse 2K26 live competition platform, with a clean, premium, competitive UI and a highly reliable allocation engine.
 
+---
+
+## Project Structure
+
+This is a **TanStack Start** app: one full-stack project, not a separate frontend
+and backend. Server code is colocated with the UI on purpose — server functions
+are compiled into the same build and invoked as typed RPCs, so a physical
+`frontend/` + `backend/` split would break file-based routing, the `@/` alias and
+the Nitro build. The separation is by **file role**, mapped below.
+
+### Frontend — browser
+
+| Path | Role |
+| --- | --- |
+| `src/routes/index.tsx` | Landing page with live counters |
+| `src/routes/select.tsx` | 4-step participant flow: verify → domain → select → confirm |
+| `src/routes/success.tsx` | Allocation receipt (printable) |
+| `src/routes/closed.tsx` | Selection-closed page |
+| `src/routes/admin/login.tsx` | Organiser sign-in + first-time setup |
+| `src/routes/admin/_dash.tsx` | Guarded admin layout (auth gate, sidebar, realtime) |
+| `src/routes/admin/_dash/*.tsx` | Dashboard, allocations, teams, problem statements, domains, activity, settings |
+| `src/components/hv/` | HackVerse-specific UI (participant + admin chrome) |
+| `src/components/ui/` | shadcn/ui primitives |
+| `src/styles.css` | Design tokens (oklch) and Tailwind theme |
+
+`_dash` is a **pathless layout route**: it wraps every admin page in the auth
+guard while leaving `/admin/login` outside it. Renaming it changes the URLs.
+
+### Backend — server only
+
+| Path | Role |
+| --- | --- |
+| `src/lib/hackverse.server.ts` | Core logic: allocation, verification, rate limiting, audit |
+| `src/lib/participant.functions.ts` | Participant RPC endpoints |
+| `src/lib/admin.functions.ts` | Admin RPC endpoints (zod-validated, admin-role gated) |
+| `src/integrations/supabase/client.server.ts` | Service-role client — **never import from a route** |
+| `src/integrations/supabase/auth-middleware.ts` | Verifies the bearer token, exposes `userId` |
+| `src/server.ts`, `src/start.ts` | Server entry and global middleware |
+
+Anything ending `.server.ts` is server-only. Files ending `.functions.ts` ship a
+client stub, so they must not import the service-role client at module scope.
+
+### Shared
+
+`src/lib/hackverse-types.ts` (types + status language), `src/lib/live.ts`
+(realtime subscription, CSV, formatting), `src/lib/audit-format.ts`,
+`src/lib/admin.queries.ts` (React Query options).
+
+### Database
+
+| Path | Role |
+| --- | --- |
+| `supabase/setup-new-project.sql` | **Rebuild step 1** — schema, RLS, allocate RPC, realtime, domains + placeholder problem statements |
+| `supabase/seed-real-teams.sql` | **Rebuild step 2** — the 88 real teams + registered count |
+| `supabase/migrations/` | Original migration history — **never run these by hand** |
+
+The allocation engine is `allocate_problem_statement()`, a `security definer`
+PL/pgSQL function. It locks `event_settings` then the problem statement row
+`for update`, so concurrent confirmations serialise and the last slot can only
+be won once. Constraints back this up: `allocated_count <= capacity`, a unique
+`team_id` on `allocations`, and `remaining_slots` as a generated column.
+
+### Ops
+
+| Path | Role |
+| --- | --- |
+| `scripts/problem-statements.json` | Source of truth for the 25 problem statements + 5 domains |
+| `scripts/load-problem-statements.mjs` | **Rebuild step 3** — loads them; refuses to run if allocations exist |
+| `scripts/verify-scenarios.mjs` | 32-assertion suite; uses throwaway teams and resets afterwards |
+
+### Rebuilding the database from scratch
+
+1. Run `supabase/setup-new-project.sql` in the Supabase SQL Editor
+2. Run `supabase/seed-real-teams.sql`
+3. `node scripts/load-problem-statements.mjs`
+
+> Step 1 begins with a reset block that **drops every HackVerse table**. Never
+> run it against a live event database.
+
+### Environment
+
+`.env` (committed) holds public values: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`
+and their `VITE_` twins. `.env.local` (gitignored) holds
+`SUPABASE_SERVICE_ROLE_KEY` — it bypasses RLS and must never be committed or
+exposed to the browser. See `.env.example`.
+
+---
+
 This project was built with [Lovable](https://lovable.dev).
 
 **Live app**: https://hackverse2k26.lovable.app

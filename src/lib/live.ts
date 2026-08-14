@@ -14,7 +14,7 @@ export const publicStateQuery = queryOptions({
  * Subscribes once to the tables that drive live slot availability and
  * invalidates the given query keys whenever the backend changes.
  */
-export function useLiveAllocations(keys: string[][]) {
+export function useLiveAllocations(keys: readonly (readonly string[])[]) {
   const queryClient = useQueryClient();
   const signature = JSON.stringify(keys);
 

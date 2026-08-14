@@ -29,6 +29,21 @@ export const registerAdminAccount = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => registerAdminCore(data.email, data.password, data.accessCode));
 
+// Never throws for a signed-in non-admin: the admin shell needs to tell
+// "not signed in" apart from "signed in without the admin role".
+export const adminWhoami = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    return {
+      email: (context.claims.email as string | undefined) ?? null,
+      isAdmin: data === true,
+    };
+  });
+
 export const adminOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

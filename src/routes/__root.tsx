@@ -94,7 +94,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      // favicon.ico never existed — the original link pointed at a 404.
+      // favicon-256.png is the centre square of the 1536x1024 brand logo,
+      // downscaled: browsers need a square icon, and the full 1.23MB original
+      // would be fetched on every cold load just to be drawn at 16px.
+      { rel: "icon", href: "/favicon-256.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/favicon-256.png" },
     ],
   }),
   shellComponent: RootShell,

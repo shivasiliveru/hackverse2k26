@@ -209,7 +209,7 @@ function SelectFlow() {
                   onChange={(e) => setTeamName(e.target.value)}
                   required
                   maxLength={120}
-                  placeholder="Team Alpha 1"
+                  placeholder="Your registered team name"
                   className="w-full border border-input bg-background px-3 py-3 text-sm outline-none focus:border-primary"
                 />
               </Field>
@@ -219,7 +219,7 @@ function SelectFlow() {
                   onChange={(e) => setTeamId(e.target.value.toUpperCase())}
                   required
                   maxLength={40}
-                  placeholder="HV1001"
+                  placeholder="HV2026-0001"
                   className="hv-mono w-full border border-input bg-background px-3 py-3 text-sm tracking-widest outline-none focus:border-primary"
                 />
               </Field>

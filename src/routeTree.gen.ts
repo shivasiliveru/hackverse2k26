@@ -13,6 +13,15 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClosedRouteImport } from './routes/closed'
 import { Route as SelectRouteImport } from './routes/select'
 import { Route as SuccessRouteImport } from './routes/success'
+import { Route as AdminDashRouteImport } from './routes/admin/_dash'
+import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as AdminDashIndexRouteImport } from './routes/admin/_dash/index'
+import { Route as AdminDashActivityRouteImport } from './routes/admin/_dash/activity'
+import { Route as AdminDashAllocationsRouteImport } from './routes/admin/_dash/allocations'
+import { Route as AdminDashDomainsRouteImport } from './routes/admin/_dash/domains'
+import { Route as AdminDashProblemStatementsRouteImport } from './routes/admin/_dash/problem-statements'
+import { Route as AdminDashSettingsRouteImport } from './routes/admin/_dash/settings'
+import { Route as AdminDashTeamsRouteImport } from './routes/admin/_dash/teams'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +43,81 @@ const SuccessRoute = SuccessRouteImport.update({
   path: '/success',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminDashRoute = AdminDashRouteImport.update({
+  id: '/admin/_dash',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminDashIndexRoute = AdminDashIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashActivityRoute = AdminDashActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashAllocationsRoute = AdminDashAllocationsRouteImport.update({
+  id: '/allocations',
+  path: '/allocations',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashDomainsRoute = AdminDashDomainsRouteImport.update({
+  id: '/domains',
+  path: '/domains',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashProblemStatementsRoute =
+  AdminDashProblemStatementsRouteImport.update({
+    id: '/problem-statements',
+    path: '/problem-statements',
+    getParentRoute: () => AdminDashRoute,
+  } as any)
+const AdminDashSettingsRoute = AdminDashSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashTeamsRoute = AdminDashTeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => AdminDashRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
   '/select': typeof SelectRoute
   '/success': typeof SuccessRoute
+  '/admin': typeof AdminDashRouteWithChildren
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/activity': typeof AdminDashActivityRoute
+  '/admin/allocations': typeof AdminDashAllocationsRoute
+  '/admin/domains': typeof AdminDashDomainsRoute
+  '/admin/problem-statements': typeof AdminDashProblemStatementsRoute
+  '/admin/settings': typeof AdminDashSettingsRoute
+  '/admin/teams': typeof AdminDashTeamsRoute
+  '/admin/': typeof AdminDashIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
   '/select': typeof SelectRoute
   '/success': typeof SuccessRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/activity': typeof AdminDashActivityRoute
+  '/admin/allocations': typeof AdminDashAllocationsRoute
+  '/admin/domains': typeof AdminDashDomainsRoute
+  '/admin/problem-statements': typeof AdminDashProblemStatementsRoute
+  '/admin/settings': typeof AdminDashSettingsRoute
+  '/admin/teams': typeof AdminDashTeamsRoute
+  '/admin': typeof AdminDashIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +125,61 @@ export interface FileRoutesById {
   '/closed': typeof ClosedRoute
   '/select': typeof SelectRoute
   '/success': typeof SuccessRoute
+  '/admin/_dash': typeof AdminDashRouteWithChildren
+  '/admin/login': typeof AdminLoginRoute
+  '/admin/_dash/activity': typeof AdminDashActivityRoute
+  '/admin/_dash/allocations': typeof AdminDashAllocationsRoute
+  '/admin/_dash/domains': typeof AdminDashDomainsRoute
+  '/admin/_dash/problem-statements': typeof AdminDashProblemStatementsRoute
+  '/admin/_dash/settings': typeof AdminDashSettingsRoute
+  '/admin/_dash/teams': typeof AdminDashTeamsRoute
+  '/admin/_dash/': typeof AdminDashIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/closed' | '/select' | '/success'
+  fullPaths:
+    | '/'
+    | '/closed'
+    | '/select'
+    | '/success'
+    | '/admin'
+    | '/admin/login'
+    | '/admin/activity'
+    | '/admin/allocations'
+    | '/admin/domains'
+    | '/admin/problem-statements'
+    | '/admin/settings'
+    | '/admin/teams'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/closed' | '/select' | '/success'
-  id: '__root__' | '/' | '/closed' | '/select' | '/success'
+  to:
+    | '/'
+    | '/closed'
+    | '/select'
+    | '/success'
+    | '/admin/login'
+    | '/admin/activity'
+    | '/admin/allocations'
+    | '/admin/domains'
+    | '/admin/problem-statements'
+    | '/admin/settings'
+    | '/admin/teams'
+    | '/admin'
+  id:
+    | '__root__'
+    | '/'
+    | '/closed'
+    | '/select'
+    | '/success'
+    | '/admin/_dash'
+    | '/admin/login'
+    | '/admin/_dash/activity'
+    | '/admin/_dash/allocations'
+    | '/admin/_dash/domains'
+    | '/admin/_dash/problem-statements'
+    | '/admin/_dash/settings'
+    | '/admin/_dash/teams'
+    | '/admin/_dash/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +187,8 @@ export interface RootRouteChildren {
   ClosedRoute: typeof ClosedRoute
   SelectRoute: typeof SelectRoute
   SuccessRoute: typeof SuccessRoute
+  AdminDashRoute: typeof AdminDashRouteWithChildren
+  AdminLoginRoute: typeof AdminLoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,14 +221,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SuccessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/_dash': {
+      id: '/admin/_dash'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminDashRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/_dash/': {
+      id: '/admin/_dash/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminDashIndexRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/activity': {
+      id: '/admin/_dash/activity'
+      path: '/activity'
+      fullPath: '/admin/activity'
+      preLoaderRoute: typeof AdminDashActivityRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/allocations': {
+      id: '/admin/_dash/allocations'
+      path: '/allocations'
+      fullPath: '/admin/allocations'
+      preLoaderRoute: typeof AdminDashAllocationsRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/domains': {
+      id: '/admin/_dash/domains'
+      path: '/domains'
+      fullPath: '/admin/domains'
+      preLoaderRoute: typeof AdminDashDomainsRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/problem-statements': {
+      id: '/admin/_dash/problem-statements'
+      path: '/problem-statements'
+      fullPath: '/admin/problem-statements'
+      preLoaderRoute: typeof AdminDashProblemStatementsRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/settings': {
+      id: '/admin/_dash/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminDashSettingsRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/teams': {
+      id: '/admin/_dash/teams'
+      path: '/teams'
+      fullPath: '/admin/teams'
+      preLoaderRoute: typeof AdminDashTeamsRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
   }
 }
+
+interface AdminDashRouteChildren {
+  AdminDashActivityRoute: typeof AdminDashActivityRoute
+  AdminDashAllocationsRoute: typeof AdminDashAllocationsRoute
+  AdminDashDomainsRoute: typeof AdminDashDomainsRoute
+  AdminDashProblemStatementsRoute: typeof AdminDashProblemStatementsRoute
+  AdminDashSettingsRoute: typeof AdminDashSettingsRoute
+  AdminDashTeamsRoute: typeof AdminDashTeamsRoute
+  AdminDashIndexRoute: typeof AdminDashIndexRoute
+}
+
+const AdminDashRouteChildren: AdminDashRouteChildren = {
+  AdminDashActivityRoute: AdminDashActivityRoute,
+  AdminDashAllocationsRoute: AdminDashAllocationsRoute,
+  AdminDashDomainsRoute: AdminDashDomainsRoute,
+  AdminDashProblemStatementsRoute: AdminDashProblemStatementsRoute,
+  AdminDashSettingsRoute: AdminDashSettingsRoute,
+  AdminDashTeamsRoute: AdminDashTeamsRoute,
+  AdminDashIndexRoute: AdminDashIndexRoute,
+}
+
+const AdminDashRouteWithChildren = AdminDashRoute._addFileChildren(
+  AdminDashRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClosedRoute: ClosedRoute,
   SelectRoute: SelectRoute,
   SuccessRoute: SuccessRoute,
+  AdminDashRoute: AdminDashRouteWithChildren,
+  AdminLoginRoute: AdminLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

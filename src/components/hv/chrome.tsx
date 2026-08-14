@@ -6,9 +6,13 @@ import { cn } from "@/lib/utils";
 export function HackverseMark({ className }: { className?: string }) {
   return (
     <Link to="/" className={cn("group flex items-center gap-3", className)}>
-      <span className="flex h-8 w-8 items-center justify-center bg-primary text-primary-foreground">
-        <span className="font-display text-base leading-none font-black">H</span>
-      </span>
+      <img
+        src="/hackverse-logo.png"
+        alt=""
+        width={54}
+        height={36}
+        className="h-9 w-auto shrink-0"
+      />
       <span className="leading-none">
         <span className="font-display block text-sm font-extrabold tracking-tight">HACKVERSE 2K26</span>
         <span className="hv-label mt-1 block text-[10px]">Problem Statement Selection</span>

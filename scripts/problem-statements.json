@@ -1,0 +1,70 @@
+{
+  "_comment": "Canonical HackVerse 2K26 problem statement roster. Source of truth for both scripts/load-problem-statements.mjs and supabase/seed-real-problem-statements.sql. display_order matches the organiser's Domain 1..5 ordering.",
+  "domains": [
+    {
+      "display_order": 1,
+      "name": "Artificial Intelligence, Data Science & Smart Automation",
+      "code": "HV-AI",
+      "expected_solution": "Expected solutions may include: AI/ML, NLP, LLMs, recommendation systems, data analytics, dashboards, APIs, Python, React, etc.",
+      "problem_statements": [
+        { "code": "HV-AI-01", "title": "AI-Based Student Skill Assessment & Personalized Career Recommendation System" },
+        { "code": "HV-AI-02", "title": "Intelligent Resume Analyzer & Job/Internship Matching Platform" },
+        { "code": "HV-AI-03", "title": "AI-Powered Multilingual College & Student Helpdesk Assistant" },
+        { "code": "HV-AI-04", "title": "AI-Based Fake News, Misinformation & Suspicious Content Detection Platform" },
+        { "code": "HV-AI-05", "title": "Intelligent Document Analysis, Summarization & Information Extraction System" }
+      ]
+    },
+    {
+      "display_order": 2,
+      "name": "Smart Manufacturing, MSMEs & Industry 6.0",
+      "code": "HV-MSME",
+      "expected_solution": "Expected solutions may include: ERP modules, QR technology, cloud databases, business analytics, dashboards, AI forecasting, web/mobile applications, etc.",
+      "problem_statements": [
+        { "code": "HV-MSME-01", "title": "Smart Inventory Management System with Stock Prediction & Automated Alerts" },
+        { "code": "HV-MSME-02", "title": "Digital Order, Billing, Invoice & Expense Management Platform for MSMEs" },
+        { "code": "HV-MSME-03", "title": "Smart Vendor, Supplier & Procurement Management System for Small Enterprises" },
+        { "code": "HV-MSME-04", "title": "QR-Based Product Tracking, Inventory Movement & Supply Chain Traceability System" },
+        { "code": "HV-MSME-05", "title": "MSME Business Intelligence Dashboard with Sales Analysis & Demand Forecasting" }
+      ]
+    },
+    {
+      "display_order": 3,
+      "name": "Healthcare, Agriculture & Sustainable Development",
+      "code": "HV-SUS",
+      "expected_solution": "Expected solutions may include: mobile apps, AI/computer vision, GPS/maps, notification systems, cloud databases, IoT simulation, dashboards, etc.",
+      "problem_statements": [
+        { "code": "HV-SUS-01", "title": "Smart Blood Donor Discovery & Emergency Blood Request Management Platform" },
+        { "code": "HV-SUS-02", "title": "Digital Hospital Appointment, Patient Token & Smart Queue Management System" },
+        { "code": "HV-SUS-03", "title": "AI-Based Crop Disease Identification & Farmer Advisory Platform" },
+        { "code": "HV-SUS-04", "title": "Smart Water Usage Monitoring, Leakage Reporting & Conservation Management System" },
+        { "code": "HV-SUS-05", "title": "Smart Waste Collection, Citizen Reporting & Recycling Management Platform" }
+      ]
+    },
+    {
+      "display_order": 4,
+      "name": "Cyber Security, Cloud Computing & Digital Infrastructure",
+      "code": "HV-CYB",
+      "expected_solution": "Expected solutions may include: encryption, authentication, RBAC, blockchain, cloud storage, APIs, cybersecurity analysis, secure web applications, etc.",
+      "problem_statements": [
+        { "code": "HV-CYB-01", "title": "AI-Assisted Phishing URL, Suspicious Email & Online Fraud Detection System" },
+        { "code": "HV-CYB-02", "title": "Secure Document Sharing Platform with Role-Based Access & Time-Limited Permissions" },
+        { "code": "HV-CYB-03", "title": "Blockchain-Based Academic Certificate & Digital Credential Verification System" },
+        { "code": "HV-CYB-04", "title": "Cloud-Based Automated Data Backup, Versioning & Recovery Management Platform" },
+        { "code": "HV-CYB-05", "title": "Interactive Cybersecurity Awareness & Phishing Simulation Training Platform" }
+      ]
+    },
+    {
+      "display_order": 5,
+      "name": "Smart Education, Mobility & Digital Society",
+      "code": "HV-SMT",
+      "expected_solution": "Expected solutions may include: GPS/maps, QR codes, mobile/web applications, AI recommendations, push notifications, dashboards, cloud databases, etc.",
+      "problem_statements": [
+        { "code": "HV-SMT-01", "title": "AI-Based Student Placement, Internship & Skill-Gap Recommendation Platform" },
+        { "code": "HV-SMT-02", "title": "Smart Campus Complaint, Maintenance & Service Request Tracking System" },
+        { "code": "HV-SMT-03", "title": "QR-Based Smart Campus Navigation & Facility Information Platform" },
+        { "code": "HV-SMT-04", "title": "Smart Citizen Grievance Reporting, Department Assignment & Resolution Tracking System" },
+        { "code": "HV-SMT-05", "title": "Real-Time College Bus Tracking, Route Management & Student Notification System" }
+      ]
+    }
+  ]
+}
