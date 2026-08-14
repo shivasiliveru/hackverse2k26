@@ -119,7 +119,7 @@ export interface AuditEntry {
   team_ref: string | null;
   problem_statement_ref: string | null;
   actor: string | null;
-  metadata: Record<string, unknown>;
+  metadata: Record<string, string | number | boolean | null>;
   created_at: string;
 }
 

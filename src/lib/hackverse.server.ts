@@ -67,7 +67,7 @@ export async function audit(entry: {
   team_ref?: string | null;
   problem_statement_ref?: string | null;
   actor?: string | null;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, string | number | boolean | null>;
 }): Promise<void> {
   const db = await admin();
   await db.from("audit_log").insert({
@@ -411,7 +411,7 @@ export async function fetchAuditLog(limit: number): Promise<AuditEntry[]> {
 }
 
 export async function upsertProblemStatement(input: {
-  id?: string;
+  id?: string | undefined;
   code: string;
   title: string;
   description: string;
@@ -471,7 +471,7 @@ export async function upsertProblemStatement(input: {
 }
 
 export async function saveDomain(input: {
-  id?: string;
+  id?: string | undefined;
   name: string;
   description: string;
   display_order: number;
