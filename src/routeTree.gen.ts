@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClosedRouteImport } from './routes/closed'
+import { Route as SelectRouteImport } from './routes/select'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const ClosedRoute = ClosedRouteImport.update({
   path: '/closed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SelectRoute = SelectRouteImport.update({
+  id: '/select',
+  path: '/select',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
+  '/select': typeof SelectRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
+  '/select': typeof SelectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
+  '/select': typeof SelectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/closed'
+  fullPaths: '/' | '/closed' | '/select'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/closed'
-  id: '__root__' | '/' | '/closed'
+  to: '/' | '/closed' | '/select'
+  id: '__root__' | '/' | '/closed' | '/select'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClosedRoute: typeof ClosedRoute
+  SelectRoute: typeof SelectRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClosedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/select': {
+      id: '/select'
+      path: '/select'
+      fullPath: '/select'
+      preLoaderRoute: typeof SelectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClosedRoute: ClosedRoute,
+  SelectRoute: SelectRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
