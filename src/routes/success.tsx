@@ -59,7 +59,7 @@ function SuccessPage() {
               <Row label="Problem Statement ID" value={receipt.problem_statement_id} mono />
               <Row label="Title" value={receipt.title} />
               <Row label="Confirmed On" value={formatStamp(receipt.selected_at)} mono />
-              <Row label="Allocation Reference" value={receipt.allocation_id} mono />
+              <Row label="Allocation Number" value={`#${receipt.allocation_number}`} mono />
             </dl>
 
             <p className="hv-mono mt-6 text-[11px] text-muted-foreground">
