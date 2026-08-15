@@ -33,3 +33,9 @@ dist-ssr
 
 # Vercel build output / project link
 .vercel
+
+# Environment files — never commit. Use .env.example as the template,
+# and set real values locally plus in the Vercel dashboard.
+.env
+.env.*
+!.env.example
