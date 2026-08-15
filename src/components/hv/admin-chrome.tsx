@@ -2,12 +2,15 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
   Activity,
+  ClipboardCheck,
+  Gavel,
   LayoutDashboard,
   ListChecks,
   Layers,
   LogOut,
   Settings,
   SlidersHorizontal,
+  Trophy,
   Users,
 } from "lucide-react";
 
@@ -15,14 +18,37 @@ import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ nav */
 
-export const ADMIN_NAV = [
-  { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/allocations", label: "Allocations", icon: ListChecks },
-  { to: "/admin/teams", label: "Teams", icon: Users },
-  { to: "/admin/problem-statements", label: "Problem Statements", icon: SlidersHorizontal },
-  { to: "/admin/domains", label: "Domains", icon: Layers },
-  { to: "/admin/activity", label: "Activity Log", icon: Activity },
-  { to: "/admin/settings", label: "Settings", icon: Settings },
+/** §45 — grouped so hackathon controls and judging controls stay distinct. */
+export const ADMIN_NAV_GROUPS = [
+  {
+    label: "Overview",
+    items: [{ to: "/admin", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "Hackathon",
+    items: [
+      { to: "/admin/teams", label: "Teams", icon: Users },
+      { to: "/admin/problem-statements", label: "Problem Statements", icon: SlidersHorizontal },
+      { to: "/admin/domains", label: "Domains", icon: Layers },
+      { to: "/admin/allocations", label: "Allocations", icon: ListChecks },
+    ],
+  },
+  {
+    label: "Judging",
+    items: [
+      { to: "/admin/judges", label: "Judges", icon: Gavel },
+      { to: "/admin/evaluations", label: "Evaluations", icon: ClipboardCheck },
+      { to: "/admin/leaderboard", label: "Leaderboard", icon: Trophy },
+    ],
+  },
+  {
+    label: "Monitoring",
+    items: [{ to: "/admin/activity", label: "Activity Log", icon: Activity }],
+  },
+  {
+    label: "Settings",
+    items: [{ to: "/admin/settings", label: "Settings", icon: Settings }],
+  },
 ] as const;
 
 export function AdminSidebar({
@@ -50,21 +76,28 @@ export function AdminSidebar({
         </span>
       </div>
 
-      <nav className="flex gap-px overflow-x-auto p-2 lg:flex-1 lg:flex-col lg:overflow-visible lg:p-3">
-        {ADMIN_NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            activeOptions={{ exact: item.to === "/admin" }}
-            activeProps={{ className: "bg-sidebar-accent text-foreground" }}
-            inactiveProps={{
-              className: "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
-            }}
-            className="hv-mono flex shrink-0 items-center gap-2.5 px-3 py-2.5 text-[11px] font-bold tracking-widest uppercase transition-colors"
-          >
-            <item.icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="whitespace-nowrap">{item.label}</span>
-          </Link>
+      {/* Group headings are desktop-only: on mobile the sidebar collapses to a
+          single scrolling strip, where labels would cost more than they add. */}
+      <nav className="flex gap-px overflow-x-auto p-2 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:p-3">
+        {ADMIN_NAV_GROUPS.map((group) => (
+          <div key={group.label} className="flex gap-px lg:mt-3 lg:flex-col lg:first:mt-0">
+            <p className="hv-label hidden px-3 pb-1.5 lg:block">{group.label}</p>
+            {group.items.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                activeOptions={{ exact: item.to === "/admin" }}
+                activeProps={{ className: "bg-sidebar-accent text-foreground" }}
+                inactiveProps={{
+                  className: "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                }}
+                className="hv-mono flex shrink-0 items-center gap-2.5 px-3 py-2.5 text-[11px] font-bold tracking-widest uppercase transition-colors"
+              >
+                <item.icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="whitespace-nowrap">{item.label}</span>
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
 

@@ -149,3 +149,124 @@ export function adminPsStatus(allocated: number, capacity: number): string {
   if (allocated > 0) return "PARTIALLY ALLOCATED";
   return "AVAILABLE";
 }
+
+/* ------------------------------------------------------------- judging */
+
+export type EvaluationStatus = "open" | "paused" | "closed";
+export type RankingMethod = "total" | "average";
+export type JudgeStatus = "active" | "disabled" | "deleted";
+
+export const SCORE_MAX = 10;
+
+export interface EvaluationSettings {
+  evaluation_status: EvaluationStatus;
+  score_increment: number;
+  allow_score_editing: boolean;
+  evaluation_start: string | null;
+  evaluation_end: string | null;
+  leaderboard_public: boolean;
+  leaderboard_frozen: boolean;
+  leaderboard_frozen_at: string | null;
+  ranking_method: RankingMethod;
+  judges_see_others: boolean;
+  max_judges: number | null;
+}
+
+export interface JudgeRow {
+  id: string;
+  username: string;
+  name: string;
+  email: string | null;
+  organization: string | null;
+  phone: string | null;
+  status: JudgeStatus;
+  created_at: string;
+  evaluations: number;
+  remaining: number;
+  average_score: number | null;
+  min_score: number | null;
+  max_score: number | null;
+  last_activity: string | null;
+}
+
+/** One row of the judge's own team list — never carries other judges' scores. */
+export interface JudgeTeamRow {
+  team_uuid: string;
+  team_code: string;
+  team_name: string;
+  ps_code: string | null;
+  ps_title: string | null;
+  domain_name: string | null;
+  my_score: number | null;
+  evaluated: boolean;
+  submitted_at: string | null;
+}
+
+export interface JudgeWhoami {
+  id: string;
+  username: string;
+  name: string;
+  status: JudgeStatus;
+  isJudge: boolean;
+}
+
+export interface LeaderboardRow {
+  rank: number;
+  team_uuid: string;
+  team_code: string;
+  team_name: string;
+  ps_code: string | null;
+  ps_title: string | null;
+  domain_name: string | null;
+  total_score: number;
+  average_score: number;
+  judge_count: number;
+  last_evaluated_at: string | null;
+  tie_broken: boolean;
+}
+
+export interface EvaluationLogRow {
+  id: string;
+  judge_id: string;
+  judge_name: string;
+  judge_username: string;
+  team_code: string;
+  team_name: string;
+  ps_code: string | null;
+  score: number;
+  submitted_at: string;
+  updated_at: string;
+}
+
+export interface LeaderboardStats {
+  teams: number;
+  judges: number;
+  evaluations: number;
+  averageScore: number;
+  highestTotal: number;
+}
+
+export const EVALUATION_ERROR_MESSAGES: Record<string, string> = {
+  JUDGE_NOT_FOUND: "This judge account could not be found.",
+  JUDGE_INACTIVE: "This judge account has been disabled by the organizers.",
+  EVAL_PAUSED: "Evaluation is temporarily paused by the organizers.",
+  EVAL_CLOSED: "Evaluation is closed. No further scores can be submitted.",
+  EVAL_NOT_STARTED: "The evaluation window has not opened yet.",
+  EVAL_ENDED: "The evaluation deadline has passed.",
+  TEAM_NOT_FOUND: "That team could not be found.",
+  TEAM_NOT_ELIGIBLE: "That team is not eligible for evaluation.",
+  SCORE_REQUIRED: "Please choose a score before submitting.",
+  SCORE_OUT_OF_RANGE: `Score must be between 0 and ${SCORE_MAX}.`,
+  SCORE_BAD_INCREMENT: "That score does not match the allowed increment.",
+  ALREADY_EVALUATED: "You have already evaluated this team.",
+  UNKNOWN: "Something went wrong. Please try again.",
+};
+
+export function scoreOptions(increment: number): number[] {
+  const steps = Math.round(SCORE_MAX / increment);
+  return Array.from({ length: steps + 1 }, (_, i) => Number((i * increment).toFixed(1)));
+}
+
+export function formatScore(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}

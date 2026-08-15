@@ -13,6 +13,7 @@ import {
   Pill,
   selectionStatusTone,
 } from "@/components/hv/admin-chrome";
+import { EvaluationSettingsPanels } from "@/components/hv/evaluation-settings";
 import { adminOverviewQuery } from "@/lib/admin.queries";
 import { finalizeDisqualifications, updateEventSettings } from "@/lib/admin.functions";
 import type { SelectionStatus } from "@/lib/hackverse-types";
@@ -190,6 +191,8 @@ function AdminSettings() {
           </ActionButton>
         </footer>
       </DataPanel>
+
+      <EvaluationSettingsPanels />
 
       <DataPanel
         title="Finalize & Disqualify"

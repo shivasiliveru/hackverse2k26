@@ -11,17 +11,25 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClosedRouteImport } from './routes/closed'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as SelectRouteImport } from './routes/select'
 import { Route as SuccessRouteImport } from './routes/success'
 import { Route as AdminDashRouteImport } from './routes/admin/_dash'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
+import { Route as JudgeShellRouteImport } from './routes/judge/_shell'
+import { Route as JudgeLoginRouteImport } from './routes/judge/login'
 import { Route as AdminDashIndexRouteImport } from './routes/admin/_dash/index'
 import { Route as AdminDashActivityRouteImport } from './routes/admin/_dash/activity'
 import { Route as AdminDashAllocationsRouteImport } from './routes/admin/_dash/allocations'
 import { Route as AdminDashDomainsRouteImport } from './routes/admin/_dash/domains'
+import { Route as AdminDashEvaluationsRouteImport } from './routes/admin/_dash/evaluations'
+import { Route as AdminDashJudgesRouteImport } from './routes/admin/_dash/judges'
+import { Route as AdminDashLeaderboardRouteImport } from './routes/admin/_dash/leaderboard'
 import { Route as AdminDashProblemStatementsRouteImport } from './routes/admin/_dash/problem-statements'
 import { Route as AdminDashSettingsRouteImport } from './routes/admin/_dash/settings'
 import { Route as AdminDashTeamsRouteImport } from './routes/admin/_dash/teams'
+import { Route as JudgeShellIndexRouteImport } from './routes/judge/_shell/index'
+import { Route as JudgeShellTeamsRouteImport } from './routes/judge/_shell/teams'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -31,6 +39,11 @@ const IndexRoute = IndexRouteImport.update({
 const ClosedRoute = ClosedRouteImport.update({
   id: '/closed',
   path: '/closed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SelectRoute = SelectRouteImport.update({
@@ -53,6 +66,16 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JudgeShellRoute = JudgeShellRouteImport.update({
+  id: '/judge/_shell',
+  path: '/judge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JudgeLoginRoute = JudgeLoginRouteImport.update({
+  id: '/judge/login',
+  path: '/judge/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminDashIndexRoute = AdminDashIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -73,6 +96,21 @@ const AdminDashDomainsRoute = AdminDashDomainsRouteImport.update({
   path: '/domains',
   getParentRoute: () => AdminDashRoute,
 } as any)
+const AdminDashEvaluationsRoute = AdminDashEvaluationsRouteImport.update({
+  id: '/evaluations',
+  path: '/evaluations',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashJudgesRoute = AdminDashJudgesRouteImport.update({
+  id: '/judges',
+  path: '/judges',
+  getParentRoute: () => AdminDashRoute,
+} as any)
+const AdminDashLeaderboardRoute = AdminDashLeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => AdminDashRoute,
+} as any)
 const AdminDashProblemStatementsRoute =
   AdminDashProblemStatementsRouteImport.update({
     id: '/problem-statements',
@@ -89,106 +127,165 @@ const AdminDashTeamsRoute = AdminDashTeamsRouteImport.update({
   path: '/teams',
   getParentRoute: () => AdminDashRoute,
 } as any)
+const JudgeShellIndexRoute = JudgeShellIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => JudgeShellRoute,
+} as any)
+const JudgeShellTeamsRoute = JudgeShellTeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => JudgeShellRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/select': typeof SelectRoute
   '/success': typeof SuccessRoute
   '/admin': typeof AdminDashRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/judge': typeof JudgeShellRouteWithChildren
+  '/judge/login': typeof JudgeLoginRoute
   '/admin/activity': typeof AdminDashActivityRoute
   '/admin/allocations': typeof AdminDashAllocationsRoute
   '/admin/domains': typeof AdminDashDomainsRoute
+  '/admin/evaluations': typeof AdminDashEvaluationsRoute
+  '/admin/judges': typeof AdminDashJudgesRoute
+  '/admin/leaderboard': typeof AdminDashLeaderboardRoute
   '/admin/problem-statements': typeof AdminDashProblemStatementsRoute
   '/admin/settings': typeof AdminDashSettingsRoute
   '/admin/teams': typeof AdminDashTeamsRoute
+  '/judge/teams': typeof JudgeShellTeamsRoute
   '/admin/': typeof AdminDashIndexRoute
+  '/judge/': typeof JudgeShellIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/select': typeof SelectRoute
   '/success': typeof SuccessRoute
   '/admin/login': typeof AdminLoginRoute
+  '/judge/login': typeof JudgeLoginRoute
   '/admin/activity': typeof AdminDashActivityRoute
   '/admin/allocations': typeof AdminDashAllocationsRoute
   '/admin/domains': typeof AdminDashDomainsRoute
+  '/admin/evaluations': typeof AdminDashEvaluationsRoute
+  '/admin/judges': typeof AdminDashJudgesRoute
+  '/admin/leaderboard': typeof AdminDashLeaderboardRoute
   '/admin/problem-statements': typeof AdminDashProblemStatementsRoute
   '/admin/settings': typeof AdminDashSettingsRoute
   '/admin/teams': typeof AdminDashTeamsRoute
+  '/judge/teams': typeof JudgeShellTeamsRoute
   '/admin': typeof AdminDashIndexRoute
+  '/judge': typeof JudgeShellIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/closed': typeof ClosedRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/select': typeof SelectRoute
   '/success': typeof SuccessRoute
   '/admin/_dash': typeof AdminDashRouteWithChildren
   '/admin/login': typeof AdminLoginRoute
+  '/judge/_shell': typeof JudgeShellRouteWithChildren
+  '/judge/login': typeof JudgeLoginRoute
   '/admin/_dash/activity': typeof AdminDashActivityRoute
   '/admin/_dash/allocations': typeof AdminDashAllocationsRoute
   '/admin/_dash/domains': typeof AdminDashDomainsRoute
+  '/admin/_dash/evaluations': typeof AdminDashEvaluationsRoute
+  '/admin/_dash/judges': typeof AdminDashJudgesRoute
+  '/admin/_dash/leaderboard': typeof AdminDashLeaderboardRoute
   '/admin/_dash/problem-statements': typeof AdminDashProblemStatementsRoute
   '/admin/_dash/settings': typeof AdminDashSettingsRoute
   '/admin/_dash/teams': typeof AdminDashTeamsRoute
+  '/judge/_shell/teams': typeof JudgeShellTeamsRoute
   '/admin/_dash/': typeof AdminDashIndexRoute
+  '/judge/_shell/': typeof JudgeShellIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/closed'
+    | '/leaderboard'
     | '/select'
     | '/success'
     | '/admin'
     | '/admin/login'
+    | '/judge'
+    | '/judge/login'
     | '/admin/activity'
     | '/admin/allocations'
     | '/admin/domains'
+    | '/admin/evaluations'
+    | '/admin/judges'
+    | '/admin/leaderboard'
     | '/admin/problem-statements'
     | '/admin/settings'
     | '/admin/teams'
+    | '/judge/teams'
     | '/admin/'
+    | '/judge/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/closed'
+    | '/leaderboard'
     | '/select'
     | '/success'
     | '/admin/login'
+    | '/judge/login'
     | '/admin/activity'
     | '/admin/allocations'
     | '/admin/domains'
+    | '/admin/evaluations'
+    | '/admin/judges'
+    | '/admin/leaderboard'
     | '/admin/problem-statements'
     | '/admin/settings'
     | '/admin/teams'
+    | '/judge/teams'
     | '/admin'
+    | '/judge'
   id:
     | '__root__'
     | '/'
     | '/closed'
+    | '/leaderboard'
     | '/select'
     | '/success'
     | '/admin/_dash'
     | '/admin/login'
+    | '/judge/_shell'
+    | '/judge/login'
     | '/admin/_dash/activity'
     | '/admin/_dash/allocations'
     | '/admin/_dash/domains'
+    | '/admin/_dash/evaluations'
+    | '/admin/_dash/judges'
+    | '/admin/_dash/leaderboard'
     | '/admin/_dash/problem-statements'
     | '/admin/_dash/settings'
     | '/admin/_dash/teams'
+    | '/judge/_shell/teams'
     | '/admin/_dash/'
+    | '/judge/_shell/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClosedRoute: typeof ClosedRoute
+  LeaderboardRoute: typeof LeaderboardRoute
   SelectRoute: typeof SelectRoute
   SuccessRoute: typeof SuccessRoute
   AdminDashRoute: typeof AdminDashRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
+  JudgeShellRoute: typeof JudgeShellRouteWithChildren
+  JudgeLoginRoute: typeof JudgeLoginRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -205,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/closed'
       fullPath: '/closed'
       preLoaderRoute: typeof ClosedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/select': {
@@ -235,6 +339,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/judge/_shell': {
+      id: '/judge/_shell'
+      path: '/judge'
+      fullPath: '/judge'
+      preLoaderRoute: typeof JudgeShellRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/judge/login': {
+      id: '/judge/login'
+      path: '/judge/login'
+      fullPath: '/judge/login'
+      preLoaderRoute: typeof JudgeLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/_dash/': {
       id: '/admin/_dash/'
       path: '/'
@@ -263,6 +381,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDashDomainsRouteImport
       parentRoute: typeof AdminDashRoute
     }
+    '/admin/_dash/evaluations': {
+      id: '/admin/_dash/evaluations'
+      path: '/evaluations'
+      fullPath: '/admin/evaluations'
+      preLoaderRoute: typeof AdminDashEvaluationsRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/judges': {
+      id: '/admin/_dash/judges'
+      path: '/judges'
+      fullPath: '/admin/judges'
+      preLoaderRoute: typeof AdminDashJudgesRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
+    '/admin/_dash/leaderboard': {
+      id: '/admin/_dash/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/admin/leaderboard'
+      preLoaderRoute: typeof AdminDashLeaderboardRouteImport
+      parentRoute: typeof AdminDashRoute
+    }
     '/admin/_dash/problem-statements': {
       id: '/admin/_dash/problem-statements'
       path: '/problem-statements'
@@ -284,6 +423,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDashTeamsRouteImport
       parentRoute: typeof AdminDashRoute
     }
+    '/judge/_shell/': {
+      id: '/judge/_shell/'
+      path: '/'
+      fullPath: '/judge/'
+      preLoaderRoute: typeof JudgeShellIndexRouteImport
+      parentRoute: typeof JudgeShellRoute
+    }
+    '/judge/_shell/teams': {
+      id: '/judge/_shell/teams'
+      path: '/teams'
+      fullPath: '/judge/teams'
+      preLoaderRoute: typeof JudgeShellTeamsRouteImport
+      parentRoute: typeof JudgeShellRoute
+    }
   }
 }
 
@@ -291,6 +444,9 @@ interface AdminDashRouteChildren {
   AdminDashActivityRoute: typeof AdminDashActivityRoute
   AdminDashAllocationsRoute: typeof AdminDashAllocationsRoute
   AdminDashDomainsRoute: typeof AdminDashDomainsRoute
+  AdminDashEvaluationsRoute: typeof AdminDashEvaluationsRoute
+  AdminDashJudgesRoute: typeof AdminDashJudgesRoute
+  AdminDashLeaderboardRoute: typeof AdminDashLeaderboardRoute
   AdminDashProblemStatementsRoute: typeof AdminDashProblemStatementsRoute
   AdminDashSettingsRoute: typeof AdminDashSettingsRoute
   AdminDashTeamsRoute: typeof AdminDashTeamsRoute
@@ -301,6 +457,9 @@ const AdminDashRouteChildren: AdminDashRouteChildren = {
   AdminDashActivityRoute: AdminDashActivityRoute,
   AdminDashAllocationsRoute: AdminDashAllocationsRoute,
   AdminDashDomainsRoute: AdminDashDomainsRoute,
+  AdminDashEvaluationsRoute: AdminDashEvaluationsRoute,
+  AdminDashJudgesRoute: AdminDashJudgesRoute,
+  AdminDashLeaderboardRoute: AdminDashLeaderboardRoute,
   AdminDashProblemStatementsRoute: AdminDashProblemStatementsRoute,
   AdminDashSettingsRoute: AdminDashSettingsRoute,
   AdminDashTeamsRoute: AdminDashTeamsRoute,
@@ -311,13 +470,30 @@ const AdminDashRouteWithChildren = AdminDashRoute._addFileChildren(
   AdminDashRouteChildren,
 )
 
+interface JudgeShellRouteChildren {
+  JudgeShellTeamsRoute: typeof JudgeShellTeamsRoute
+  JudgeShellIndexRoute: typeof JudgeShellIndexRoute
+}
+
+const JudgeShellRouteChildren: JudgeShellRouteChildren = {
+  JudgeShellTeamsRoute: JudgeShellTeamsRoute,
+  JudgeShellIndexRoute: JudgeShellIndexRoute,
+}
+
+const JudgeShellRouteWithChildren = JudgeShellRoute._addFileChildren(
+  JudgeShellRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClosedRoute: ClosedRoute,
+  LeaderboardRoute: LeaderboardRoute,
   SelectRoute: SelectRoute,
   SuccessRoute: SuccessRoute,
   AdminDashRoute: AdminDashRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
+  JudgeShellRoute: JudgeShellRouteWithChildren,
+  JudgeLoginRoute: JudgeLoginRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

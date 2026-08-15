@@ -156,3 +156,136 @@ export const finalizeDisqualifications = createServerFn({ method: "POST" })
     await assertAdmin(context.supabase, context.userId);
     return finalizeDisqualificationsCore(context.claims.email ?? context.userId);
   });
+
+/* ------------------------------------------------------------- judging */
+
+import {
+  createJudgeCore,
+  fetchEvaluationLogCore,
+  fetchEvaluationSettings,
+  fetchJudgesCore,
+  fetchLeaderboardCore,
+  fetchTeamEvaluationsCore,
+  freezeLeaderboardCore,
+  resetJudgePasswordCore,
+  setJudgeStatusCore,
+  updateEvaluationSettingsCore,
+} from "./judging.server";
+
+export const adminJudges = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return fetchJudgesCore();
+  });
+
+export const adminLeaderboard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return fetchLeaderboardCore();
+  });
+
+export const adminEvaluations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return fetchEvaluationLogCore();
+  });
+
+export const adminEvaluationSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return fetchEvaluationSettings();
+  });
+
+export const adminTeamEvaluations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ teamCode: z.string().trim().min(1).max(40) }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return fetchTeamEvaluationsCore(data.teamCode);
+  });
+
+export const createJudge = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        username: z
+          .string()
+          .trim()
+          .min(3)
+          .max(40)
+          .regex(/^[a-zA-Z0-9._-]+$/, "Use letters, numbers, dots, dashes and underscores only"),
+        password: z.string().min(8, "Password must be at least 8 characters").max(200),
+        name: z.string().trim().min(2).max(120),
+        email: z.string().trim().email().max(200).optional().or(z.literal("")),
+        organization: z.string().trim().max(160).optional().or(z.literal("")),
+        phone: z.string().trim().max(40).optional().or(z.literal("")),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return createJudgeCore({
+      username: data.username,
+      password: data.password,
+      name: data.name,
+      email: data.email || undefined,
+      organization: data.organization || undefined,
+      phone: data.phone || undefined,
+      actor: context.claims.email ?? context.userId,
+    });
+  });
+
+export const setJudgeStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ id: z.string().uuid(), status: z.enum(["active", "disabled", "deleted"]) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return setJudgeStatusCore(data.id, data.status, context.claims.email ?? context.userId);
+  });
+
+export const resetJudgePassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ id: z.string().uuid(), password: z.string().min(8).max(200) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return resetJudgePasswordCore(data.id, data.password, context.claims.email ?? context.userId);
+  });
+
+export const updateEvaluationSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        evaluation_status: z.enum(["open", "paused", "closed"]).optional(),
+        score_increment: z.union([z.literal(0.5), z.literal(1)]).optional(),
+        allow_score_editing: z.boolean().optional(),
+        evaluation_start: z.string().nullable().optional(),
+        evaluation_end: z.string().nullable().optional(),
+        leaderboard_public: z.boolean().optional(),
+        ranking_method: z.enum(["total", "average"]).optional(),
+        judges_see_others: z.boolean().optional(),
+        max_judges: z.number().int().min(1).max(500).nullable().optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return updateEvaluationSettingsCore({ ...data, actor: context.claims.email ?? context.userId });
+  });
+
+export const freezeLeaderboard = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ freeze: z.boolean() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return freezeLeaderboardCore(data.freeze, context.claims.email ?? context.userId);
+  });
