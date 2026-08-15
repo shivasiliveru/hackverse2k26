@@ -50,7 +50,11 @@ function AdminTeams() {
       if (filter === "eligible" && row.status !== "eligible") return false;
       if (filter === "disqualified" && row.status !== "disqualified") return false;
       if (!term) return true;
-      return `${row.team_id} ${row.team_name} ${row.leader_name ?? ""}`
+      // Includes the problem statement code and title so an organiser can type
+      // "HV-AI-01" and immediately see which teams took it.
+      return `${row.team_id} ${row.team_name} ${row.leader_name ?? ""} ${
+        row.problem_statement_code ?? ""
+      } ${row.problem_statement_title ?? ""} ${row.domain_name ?? ""}`
         .toLowerCase()
         .includes(term);
     });
@@ -97,7 +101,7 @@ function AdminTeams() {
           <SearchField
             value={search}
             onChange={setSearch}
-            placeholder="Search team ID, name or leader…"
+            placeholder="Search team ID, name, leader or PS ID (e.g. HV-AI-01)…"
           />
           <FilterTabs
             value={filter}
@@ -120,7 +124,7 @@ function AdminTeams() {
           </AdminEmpty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left">
+            <table className="w-full min-w-[1100px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-border">
                   {[
@@ -128,6 +132,7 @@ function AdminTeams() {
                     "Team Name",
                     "Leader",
                     "Status",
+                    "PS ID",
                     "Problem Statement",
                     "Domain",
                     "Selected At",
@@ -155,17 +160,19 @@ function AdminTeams() {
                     <td className="px-4 py-3">
                       <Pill label={row.status} tone={teamStatusTone(row.status)} />
                     </td>
-                    <td className="max-w-[260px] px-4 py-3 text-xs">
+                    {/* PS ID gets its own column so the allocation can be read
+                        down a single scannable line of codes. */}
+                    <td className="px-4 py-3 whitespace-nowrap">
                       {row.problem_statement_code ? (
-                        <span>
-                          <span className="hv-mono font-bold">{row.problem_statement_code}</span>
-                          <span className="ml-2 text-muted-foreground">
-                            {row.problem_statement_title}
-                          </span>
+                        <span className="hv-mono border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                          {row.problem_statement_code}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="hv-mono text-xs text-muted-foreground">—</span>
                       )}
+                    </td>
+                    <td className="max-w-[280px] truncate px-4 py-3 text-xs text-muted-foreground">
+                      {row.problem_statement_title ?? "—"}
                     </td>
                     <td className="max-w-[180px] truncate px-4 py-3 text-xs text-muted-foreground">
                       {row.domain_name ?? "—"}
