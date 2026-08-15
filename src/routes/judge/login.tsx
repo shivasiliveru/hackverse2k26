@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, ClipboardCheck, Loader2 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { PasswordField } from "@/components/hv/password-field";
 import { judgeEmailFor } from "@/lib/judge.queries";
 
 export const Route = createFileRoute("/judge/login")({
@@ -97,18 +98,13 @@ function JudgeLogin() {
                 className="hv-mono w-full border border-input bg-background px-3 py-3 text-sm outline-none focus:border-primary"
               />
             </label>
-            <label className="block">
-              <span className="hv-label mb-2 block">Password</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                autoComplete="current-password"
-                maxLength={200}
-                className="w-full border border-input bg-background px-3 py-3 text-sm outline-none focus:border-primary"
-              />
-            </label>
+            <PasswordField
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              required
+              autoComplete="current-password"
+            />
           </div>
 
           {error ? (

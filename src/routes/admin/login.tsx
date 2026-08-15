@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AlertTriangle, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { PasswordField } from "@/components/hv/password-field";
 import { registerAdminAccount } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/admin/login")({
@@ -111,19 +112,14 @@ function AdminLogin() {
                 className="w-full border border-input bg-background px-3 py-3 text-sm outline-none focus:border-primary"
               />
             </label>
-            <label className="block">
-              <span className="hv-label mb-2 block">Password</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                minLength={8}
-                maxLength={200}
-                className="w-full border border-input bg-background px-3 py-3 text-sm outline-none focus:border-primary"
-              />
-            </label>
+            <PasswordField
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              required
+              minLength={8}
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            />
             {mode === "setup" ? (
               <label className="block">
                 <span className="hv-label mb-2 block">Organiser access code</span>
