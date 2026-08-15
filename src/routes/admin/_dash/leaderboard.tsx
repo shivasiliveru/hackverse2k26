@@ -20,7 +20,7 @@ import {
 import { LiveDot, Metric } from "@/components/hv/chrome";
 import { adminLeaderboardQuery } from "@/lib/admin.queries";
 import { adminTeamEvaluations, freezeLeaderboard } from "@/lib/admin.functions";
-import { formatScore } from "@/lib/hackverse-types";
+import { SCORE_CRITERIA, formatScore } from "@/lib/hackverse-types";
 import type { EvaluationLogRow, LeaderboardRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
 import { cn } from "@/lib/utils";
@@ -397,24 +397,38 @@ function AdminLeaderboard() {
               ) : (
                 <ul className="mt-2 divide-y divide-border border border-border">
                   {detail.rows.map((row) => (
-                    <li
-                      key={row.id}
-                      className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
-                    >
-                      <span className="text-xs font-semibold">
-                        {row.judge_name}
-                        <span className="hv-mono ml-2 text-[10px] text-muted-foreground">
-                          {row.judge_username}
+                    <li key={row.id} className="px-3 py-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold">
+                          {row.judge_name}
+                          <span className="hv-mono ml-2 text-[10px] text-muted-foreground">
+                            {row.judge_username}
+                          </span>
                         </span>
-                      </span>
-                      <span className="flex items-center gap-3">
-                        <span className="hv-mono text-[10px] text-muted-foreground">
-                          {formatStamp(row.submitted_at)}
+                        <span className="flex items-center gap-3">
+                          <span className="hv-mono text-[10px] text-muted-foreground">
+                            {formatStamp(row.submitted_at)}
+                          </span>
+                          <span className="hv-mono border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
+                            {formatScore(row.score)}/10
+                          </span>
                         </span>
-                        <span className="hv-mono border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">
-                          {formatScore(row.score)}/10
-                        </span>
-                      </span>
+                      </div>
+                      {/* Per-criterion split, so a total can be traced to its parts. */}
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                        {SCORE_CRITERIA.map((criterion) => (
+                          <span
+                            key={criterion.key}
+                            className="hv-mono text-[10px] text-muted-foreground"
+                          >
+                            {criterion.label.split(" ")[0]}{" "}
+                            <span className="font-bold text-foreground">
+                              {formatScore(row.criteria[criterion.key])}
+                            </span>
+                            /{criterion.max}
+                          </span>
+                        ))}
+                      </div>
                     </li>
                   ))}
                 </ul>

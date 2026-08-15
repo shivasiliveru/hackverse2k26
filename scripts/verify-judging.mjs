@@ -6,6 +6,8 @@
  * database before the event — but NOT during judging, since it briefly
  * writes and deletes evaluations.
  *
+ * Requires judging-system.sql AND judging-criteria.sql to have been run.
+ *
  *   node scripts/verify-judging.mjs
  */
 const U = process.env.SUPABASE_URL;
@@ -44,12 +46,36 @@ async function authAdmin(method, path, body) {
   return text ? JSON.parse(text) : null;
 }
 
-const evaluate = (judgeId, teamCode, score) =>
-  rest("POST", "rpc/submit_evaluation", {
+/**
+ * Marking scheme maxima: problem 2, innovation 3, technical 3, presentation 2.
+ * `marks` may be a plain total (split across criteria) or explicit per-criterion
+ * values when a test needs to push one criterion out of range.
+ */
+function split(total) {
+  const caps = [2, 3, 3, 2];
+  const out = [0, 0, 0, 0];
+  let left = total;
+  for (let i = 0; i < caps.length; i++) {
+    const take = Math.min(caps[i], left);
+    out[i] = Number(take.toFixed(1));
+    left = Number((left - take).toFixed(1));
+  }
+  return out;
+}
+
+const evaluate = (judgeId, teamCode, marks) => {
+  const [problem, innovation, technical, presentation] = Array.isArray(marks)
+    ? marks
+    : split(marks);
+  return rest("POST", "rpc/submit_evaluation", {
     p_judge_id: judgeId,
     p_team_code: teamCode,
-    p_score: score,
+    p_problem: problem,
+    p_innovation: innovation,
+    p_technical: technical,
+    p_presentation: presentation,
   });
+};
 
 const board = async (teamCode) =>
   (await rest("GET", `leaderboard?select=total_score,judge_count,average_score&team_code=eq.${teamCode}`))[0];
@@ -121,12 +147,14 @@ check("code", r.code, "ALREADY_EVALUATED");
 check("total unchanged", Number((await board(team.team_id)).total_score), base + 17);
 
 console.log("\n=== T6/T7/T8: out-of-range and bad-increment scores ===");
-check("score 11 rejected", (await evaluate(judge2, team.team_id, 11)).code, "SCORE_OUT_OF_RANGE");
-check("score -1 rejected", (await evaluate(judge2, team.team_id, -1)).code, "SCORE_OUT_OF_RANGE");
-check("score 10.5 rejected", (await evaluate(judge2, team.team_id, 10.5)).code, "SCORE_OUT_OF_RANGE");
-check("score 100 rejected", (await evaluate(judge2, team.team_id, 100)).code, "SCORE_OUT_OF_RANGE");
-check("score 8.25 rejected (increment 0.5)", (await evaluate(judge2, team.team_id, 8.25)).code, "SCORE_BAD_INCREMENT");
-check("score 8.5 valid on a fresh team", true, true);
+check("problem 11 rejected (max 2)", (await evaluate(judge2, team.team_id, [11, 0, 0, 0])).code, "SCORE_OUT_OF_RANGE");
+check("problem -1 rejected", (await evaluate(judge2, team.team_id, [-1, 0, 0, 0])).code, "SCORE_OUT_OF_RANGE");
+check("problem 2.5 rejected (max 2)", (await evaluate(judge2, team.team_id, [2.5, 0, 0, 0])).code, "SCORE_OUT_OF_RANGE");
+check("innovation 100 rejected (max 3)", (await evaluate(judge2, team.team_id, [0, 100, 0, 0])).code, "SCORE_OUT_OF_RANGE");
+check("technical 3.5 rejected (max 3)", (await evaluate(judge2, team.team_id, [0, 0, 3.5, 0])).code, "SCORE_OUT_OF_RANGE");
+check("presentation 2.5 rejected (max 2)", (await evaluate(judge2, team.team_id, [0, 0, 0, 2.5])).code, "SCORE_OUT_OF_RANGE");
+check("0.25 rejected (increment 0.5)", (await evaluate(judge2, team.team_id, [0.25, 0, 0, 0])).code, "SCORE_BAD_INCREMENT");
+check("max on every criterion totals 10", split(10).reduce((a, b) => a + b, 0), 10);
 
 console.log("\n=== T9: two judges evaluate the same team simultaneously ===");
 const team2 = (await rest("GET", "teams?select=team_id&is_sample=eq.false&order=team_id&offset=1&limit=1"))[0];
@@ -186,7 +214,9 @@ await rest("PATCH", "event_settings?id=eq.1",
   },
   { Prefer: "return=minimal" });
 
-const leftoverJudges = await rest("GET", "judges?select=id&username=like.test_judge%");
+// PostgREST spells the LIKE wildcard "*"; a literal % here is an invalid
+// percent-escape and makes the edge worker throw before it reaches Postgres.
+const leftoverJudges = await rest("GET", "judges?select=id&username=like.test_judge*");
 const finalTotal = Number((await board(team.team_id)).total_score);
 check("test judges removed", leftoverJudges.length, 0);
 check("team total back to baseline", finalTotal, base);

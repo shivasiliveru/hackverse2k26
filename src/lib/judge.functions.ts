@@ -37,13 +37,22 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     z
       .object({
         teamCode: z.string().trim().min(1).max(40),
-        // Backend range guard. The RPC and a table CHECK enforce it again —
-        // §2 requires this never rely on the frontend alone.
-        score: z.number().min(0).max(10),
+        // Per-criterion ceilings from the official marking scheme. The RPC and
+        // a CHECK per column enforce these again — §2 requires that the limit
+        // never rests on the frontend alone.
+        problem: z.number().min(0).max(2),
+        innovation: z.number().min(0).max(3),
+        technical: z.number().min(0).max(3),
+        presentation: z.number().min(0).max(2),
       })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
     const judge = await requireJudge(context.userId);
-    return submitEvaluationCore(judge.id, data.teamCode, data.score);
+    return submitEvaluationCore(judge.id, data.teamCode, {
+      problem: data.problem,
+      innovation: data.innovation,
+      technical: data.technical,
+      presentation: data.presentation,
+    });
   });

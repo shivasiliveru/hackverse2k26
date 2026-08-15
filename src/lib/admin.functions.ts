@@ -160,6 +160,8 @@ export const finalizeDisqualifications = createServerFn({ method: "POST" })
 /* ------------------------------------------------------------- judging */
 
 import {
+  adminDeleteEvaluationCore,
+  adminUpdateEvaluationCore,
   createJudgeCore,
   fetchEvaluationLogCore,
   fetchEvaluationSettings,
@@ -202,7 +204,9 @@ export const adminEvaluationSettings = createServerFn({ method: "GET" })
 
 export const adminTeamEvaluations = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ teamCode: z.string().trim().min(1).max(40) }).parse(data))
+  .inputValidator((data: unknown) =>
+    z.object({ teamCode: z.string().trim().min(1).max(40) }).parse(data),
+  )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     return fetchTeamEvaluationsCore(data.teamCode);
@@ -243,7 +247,9 @@ export const createJudge = createServerFn({ method: "POST" })
 export const setJudgeStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
-    z.object({ id: z.string().uuid(), status: z.enum(["active", "disabled", "deleted"]) }).parse(data),
+    z
+      .object({ id: z.string().uuid(), status: z.enum(["active", "disabled", "deleted"]) })
+      .parse(data),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
@@ -288,4 +294,41 @@ export const freezeLeaderboard = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     return freezeLeaderboardCore(data.freeze, context.claims.email ?? context.userId);
+  });
+
+export const adminUpdateEvaluation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        // Same ceilings the judge form uses; the CHECK constraints per column
+        // remain the final authority.
+        problem: z.number().min(0).max(2),
+        innovation: z.number().min(0).max(3),
+        technical: z.number().min(0).max(3),
+        presentation: z.number().min(0).max(2),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return adminUpdateEvaluationCore(
+      data.id,
+      {
+        problem: data.problem,
+        innovation: data.innovation,
+        technical: data.technical,
+        presentation: data.presentation,
+      },
+      context.claims.email ?? context.userId,
+    );
+  });
+
+export const adminDeleteEvaluation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return adminDeleteEvaluationCore(data.id, context.claims.email ?? context.userId);
   });

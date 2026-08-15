@@ -3,7 +3,9 @@ import { z } from "zod";
 
 import { allocateCore, fetchPublicState, verifyTeamCore } from "./hackverse.server";
 
-export const getPublicState = createServerFn({ method: "GET" }).handler(async () => fetchPublicState());
+export const getPublicState = createServerFn({ method: "GET" }).handler(async () =>
+  fetchPublicState(),
+);
 
 export const verifyTeam = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>

@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { AlertTriangle, Download, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   ActionButton,
@@ -14,8 +16,15 @@ import {
   Toolbar,
 } from "@/components/hv/admin-chrome";
 import { LiveDot, Metric } from "@/components/hv/chrome";
-import { adminEvaluationsQuery, adminJudgesQuery } from "@/lib/admin.queries";
-import { formatScore } from "@/lib/hackverse-types";
+import { ScoreSheet } from "@/components/hv/judge-chrome";
+import {
+  adminEvaluationSettingsQuery,
+  adminEvaluationsQuery,
+  adminJudgesQuery,
+} from "@/lib/admin.queries";
+import { adminDeleteEvaluation, adminUpdateEvaluation } from "@/lib/admin.functions";
+import { criteriaTotal, formatScore } from "@/lib/hackverse-types";
+import type { CriterionScores, EvaluationLogRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
 
 export const Route = createFileRoute("/admin/_dash/evaluations")({
@@ -23,11 +32,56 @@ export const Route = createFileRoute("/admin/_dash/evaluations")({
 });
 
 function AdminEvaluations() {
+  const queryClient = useQueryClient();
   const { data, isPending } = useQuery(adminEvaluationsQuery);
   const judges = useQuery(adminJudgesQuery);
+  const settings = useQuery(adminEvaluationSettingsQuery);
+  const runUpdate = useServerFn(adminUpdateEvaluation);
+  const runDelete = useServerFn(adminDeleteEvaluation);
 
   const [search, setSearch] = useState("");
   const [judge, setJudge] = useState("all");
+  const [editing, setEditing] = useState<EvaluationLogRow | null>(null);
+  const [scores, setScores] = useState<CriterionScores | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<EvaluationLogRow | null>(null);
+
+  async function refresh() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["admin-evaluations"] }),
+      queryClient.invalidateQueries({ queryKey: ["admin-leaderboard"] }),
+      queryClient.invalidateQueries({ queryKey: ["admin-judges"] }),
+    ]);
+  }
+
+  const update = useMutation({
+    mutationFn: (input: { id: string } & CriterionScores) => runUpdate({ data: input }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        setError(result.message ?? "Could not update these marks.");
+        return;
+      }
+      await refresh();
+      toast.success(`Marks updated \u2014 ${formatScore(result.score ?? 0)}/10`);
+      setEditing(null);
+      setError(null);
+    },
+    onError: () => setError("Could not update these marks. Please try again."),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => runDelete({ data: { id } }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "Could not delete this evaluation.");
+        return;
+      }
+      await refresh();
+      setConfirmDelete(null);
+      toast.success("Evaluation deleted");
+    },
+    onError: () => toast.error("Could not delete this evaluation."),
+  });
 
   const rows = useMemo(() => data ?? [], [data]);
 
@@ -66,12 +120,27 @@ function AdminEvaluations() {
 
   function exportEvaluations() {
     const csv = toCsv(
-      ["Judge", "Team ID", "Team Name", "Problem Statement", "Score", "Submitted At"],
+      [
+        "Judge",
+        "Team ID",
+        "Team Name",
+        "Problem Statement",
+        "Problem Understanding (2)",
+        "Innovation (3)",
+        "Technical (3)",
+        "Presentation (2)",
+        "Total Score",
+        "Submitted At",
+      ],
       rows.map((r) => [
         r.judge_name,
         r.team_code,
         r.team_name,
         r.ps_code ?? "",
+        formatScore(r.criteria.problem),
+        formatScore(r.criteria.innovation),
+        formatScore(r.criteria.technical),
+        formatScore(r.criteria.presentation),
         formatScore(r.score),
         r.submitted_at,
       ]),
@@ -131,11 +200,13 @@ function AdminEvaluations() {
             <table className="w-full min-w-[880px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-border">
-                  {["Submitted", "Judge", "Team ID", "Team", "PS ID", "Score"].map((heading) => (
-                    <th key={heading} className="hv-label px-4 py-2.5 whitespace-nowrap">
-                      {heading}
-                    </th>
-                  ))}
+                  {["Submitted", "Judge", "Team ID", "Team", "PS ID", "Score", ""].map(
+                    (heading, index) => (
+                      <th key={index} className="hv-label px-4 py-2.5 whitespace-nowrap">
+                        {heading}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -171,6 +242,29 @@ function AdminEvaluations() {
                         {formatScore(row.score)}/10
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            setScores(row.criteria);
+                            setEditing(row);
+                          }}
+                          className="hv-mono inline-flex items-center gap-1.5 border border-border-strong px-2.5 py-1.5 text-[10px] font-bold tracking-widest uppercase transition-colors hover:bg-accent"
+                        >
+                          <Pencil className="h-3 w-3" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(row)}
+                          aria-label="Delete evaluation"
+                          className="hv-mono inline-flex items-center border border-destructive/60 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-destructive uppercase transition-colors hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -178,6 +272,111 @@ function AdminEvaluations() {
           </div>
         )}
       </DataPanel>
+
+      {/* ------------------------------------------------------ edit marks */}
+      {editing && scores ? (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm sm:p-8"
+          onClick={() => setEditing(null)}
+        >
+          <div
+            className="hv-panel w-full max-w-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div className="min-w-0">
+                <p className="hv-label">Edit marks</p>
+                <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                  {editing.team_name}
+                </h2>
+                <p className="hv-mono mt-1.5 text-[11px] text-muted-foreground">
+                  {editing.team_code} &middot; scored by {editing.judge_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                aria-label="Close"
+                className="shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <div className="px-5 py-4">
+              <ScoreSheet
+                scores={scores}
+                onChange={setScores}
+                increment={settings.data?.score_increment ?? 0.5}
+                disabled={update.isPending}
+              />
+
+              <p className="hv-mono mt-4 border-l-2 border-warning bg-warning/10 px-3 py-2.5 text-[11px] text-warning">
+                Editing a judge&apos;s marks is recorded in the audit log with the previous and new
+                totals, and updates the leaderboard immediately.
+              </p>
+
+              {error ? (
+                <p className="hv-mono mt-3 flex items-start gap-2 border-l-2 border-destructive bg-destructive/10 px-3 py-2.5 text-[11px] text-destructive">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                  {error}
+                </p>
+              ) : null}
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton variant="outline" onClick={() => setEditing(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                disabled={update.isPending}
+                onClick={() => update.mutate({ id: editing.id, ...scores })}
+              >
+                {update.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Save marks ({formatScore(criteriaTotal(scores))}/10)
+              </ActionButton>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+
+      {/* --------------------------------------------------------- delete */}
+      {confirmDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm">
+          <div className="hv-panel w-full max-w-md" role="dialog" aria-modal="true">
+            <header className="border-b border-border px-5 py-4">
+              <p className="hv-label text-destructive">Confirm</p>
+              <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                Delete this evaluation?
+              </h2>
+            </header>
+            <div className="px-5 py-4">
+              <p className="text-sm text-muted-foreground">
+                {confirmDelete.judge_name}&apos;s score of{" "}
+                <span className="text-foreground">{formatScore(confirmDelete.score)}/10</span> for{" "}
+                <span className="text-foreground">{confirmDelete.team_name}</span> will be removed
+                and the team&apos;s total recalculated. That judge will be able to evaluate this
+                team again.
+              </p>
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton variant="outline" onClick={() => setConfirmDelete(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                variant="danger"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(confirmDelete.id)}
+              >
+                {remove.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Delete evaluation
+              </ActionButton>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

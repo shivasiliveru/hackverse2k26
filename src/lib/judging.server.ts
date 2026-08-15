@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { admin, audit } from "./hackverse.server";
 import type {
+  CriterionScores,
   EvaluationLogRow,
   EvaluationSettings,
   JudgeRow,
@@ -11,7 +12,7 @@ import type {
   LeaderboardStats,
   RankingMethod,
 } from "./hackverse-types";
-import { EVALUATION_ERROR_MESSAGES } from "./hackverse-types";
+import { EVALUATION_ERROR_MESSAGES, criteriaTotal } from "./hackverse-types";
 
 /* ------------------------------------------------------------ helpers */
 
@@ -293,7 +294,12 @@ export async function fetchJudgeTeamsCore(judgeId: string): Promise<JudgeTeamRow
       .eq("is_sample", false)
       .order("team_id"),
     // Only this judge's rows are ever fetched — §39.
-    db.from("evaluations").select("team_id,score,submitted_at").eq("judge_id", judgeId),
+    db
+      .from("evaluations")
+      .select(
+        "team_id,score,submitted_at,score_problem,score_innovation,score_technical,score_presentation",
+      )
+      .eq("judge_id", judgeId),
   ]);
 
   return (teamsRes.data ?? []).map((t) => {
@@ -309,6 +315,7 @@ export async function fetchJudgeTeamsCore(judgeId: string): Promise<JudgeTeamRow
       ps_title: ps?.title ?? null,
       domain_name: one<{ name: string }>(ps?.domains)?.name ?? null,
       my_score: mine ? num(mine.score) : null,
+      my_criteria: mine ? readCriteria(mine) : null,
       evaluated: Boolean(mine),
       submitted_at: (mine?.submitted_at as string | undefined) ?? null,
     };
@@ -318,13 +325,16 @@ export async function fetchJudgeTeamsCore(judgeId: string): Promise<JudgeTeamRow
 export async function submitEvaluationCore(
   judgeId: string,
   teamCode: string,
-  score: number,
+  criteria: CriterionScores,
 ): Promise<{ ok: boolean; code?: string; message?: string; score?: number; team_name?: string }> {
   const db = await admin();
   const { data, error } = await db.rpc("submit_evaluation", {
     p_judge_id: judgeId,
     p_team_code: teamCode,
-    p_score: score,
+    p_problem: criteria.problem,
+    p_innovation: criteria.innovation,
+    p_technical: criteria.technical,
+    p_presentation: criteria.presentation,
   });
 
   if (error) {
@@ -342,10 +352,23 @@ export async function submitEvaluationCore(
   }
 
   const code = (result?.["code"] as string) ?? "UNKNOWN";
+  const criterion = result?.["criterion"] as string | undefined;
   return {
     ok: false,
     code,
-    message: EVALUATION_ERROR_MESSAGES[code] ?? EVALUATION_ERROR_MESSAGES["UNKNOWN"]!,
+    message: criterion
+      ? `${criterion} is out of range.`
+      : (EVALUATION_ERROR_MESSAGES[code] ?? EVALUATION_ERROR_MESSAGES["UNKNOWN"]!),
+  };
+}
+
+/** Shared shape reader so the four columns are mapped in exactly one place. */
+function readCriteria(row: Record<string, unknown>): CriterionScores {
+  return {
+    problem: num(row["score_problem"]),
+    innovation: num(row["score_innovation"]),
+    technical: num(row["score_technical"]),
+    presentation: num(row["score_presentation"]),
   };
 }
 
@@ -472,6 +495,7 @@ export async function fetchEvaluationLogCore(): Promise<EvaluationLogRow[]> {
       team_name: team?.team_name ?? "—",
       ps_code: ps?.problem_statement_id ?? null,
       score: num(r.score),
+      criteria: readCriteria(r as unknown as Record<string, unknown>),
       submitted_at: r.submitted_at as string,
       updated_at: r.updated_at as string,
     };
@@ -557,4 +581,95 @@ export async function fetchPublicLeaderboardCore(): Promise<{
 export async function assertAdminClient(supabase: SupabaseClient, userId: string): Promise<void> {
   const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
   if (error || data !== true) throw new Error("Forbidden");
+}
+
+/* --------------------------------------------------- admin score edits */
+
+/**
+ * Admin override of a judge's marks. Deliberately separate from the judge
+ * RPC: it ignores the evaluation window and the one-per-judge lock, because
+ * an organiser correcting a mis-keyed score must not be blocked by rules
+ * meant for judges. Every change is written to the audit log with the old
+ * and new totals.
+ */
+export async function adminUpdateEvaluationCore(
+  id: string,
+  criteria: CriterionScores,
+  actor: string,
+): Promise<{ ok: boolean; message?: string; score?: number }> {
+  const db = await admin();
+
+  const { data: existing } = await db
+    .from("evaluations")
+    .select("id,score,judges(name,username),teams(team_id)")
+    .eq("id", id)
+    .maybeSingle();
+  if (!existing) return { ok: false, message: "That evaluation no longer exists." };
+
+  const { error } = await db
+    .from("evaluations")
+    .update({
+      score_problem: criteria.problem,
+      score_innovation: criteria.innovation,
+      score_technical: criteria.technical,
+      score_presentation: criteria.presentation,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    // The per-criterion CHECK constraints are the real ceiling; surface a
+    // readable message rather than the raw Postgres violation.
+    return {
+      ok: false,
+      message: /violates check constraint/i.test(error.message)
+        ? "One of the marks is above its maximum for that criterion."
+        : error.message,
+    };
+  }
+
+  const total = criteriaTotal(criteria);
+  const judge = one<{ name: string; username: string }>(existing.judges);
+  const team = one<{ team_id: string }>(existing.teams);
+
+  await audit({
+    event: "admin_edited_evaluation",
+    team_ref: team?.team_id ?? null,
+    actor,
+    metadata: {
+      judge: judge?.name ?? "—",
+      previous_score: num(existing.score),
+      score: total,
+    },
+  });
+
+  return { ok: true, score: total };
+}
+
+export async function adminDeleteEvaluationCore(
+  id: string,
+  actor: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const db = await admin();
+
+  const { data: existing } = await db
+    .from("evaluations")
+    .select("id,score,judges(name),teams(team_id)")
+    .eq("id", id)
+    .maybeSingle();
+  if (!existing) return { ok: false, message: "That evaluation no longer exists." };
+
+  const { error } = await db.from("evaluations").delete().eq("id", id);
+  if (error) return { ok: false, message: error.message };
+
+  await audit({
+    event: "admin_deleted_evaluation",
+    team_ref: one<{ team_id: string }>(existing.teams)?.team_id ?? null,
+    actor,
+    metadata: {
+      judge: one<{ name: string }>(existing.judges)?.name ?? "—",
+      score: num(existing.score),
+    },
+  });
+  return { ok: true };
 }

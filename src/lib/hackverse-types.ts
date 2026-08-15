@@ -66,8 +66,7 @@ export interface AllocationReceipt {
 }
 
 export type AllocateResult =
-  | { ok: true; receipt: AllocationReceipt }
-  | { ok: false; code: string; message: string };
+  { ok: true; receipt: AllocationReceipt } | { ok: false; code: string; message: string };
 
 export const ALLOCATION_ERROR_MESSAGES: Record<string, string> = {
   PAUSED: "Problem statement selection is temporarily paused by the organizers.",
@@ -78,7 +77,8 @@ export const ALLOCATION_ERROR_MESSAGES: Record<string, string> = {
   ALREADY_ALLOCATED: "This team has already completed selection.",
   PS_NOT_FOUND: "That problem statement is no longer available.",
   PS_INACTIVE: "That problem statement is no longer active.",
-  PS_FULL: "This problem statement was just taken by another team. Please select another problem statement.",
+  PS_FULL:
+    "This problem statement was just taken by another team. Please select another problem statement.",
   RATE_LIMITED: "Too many attempts. Please wait a moment and try again.",
   UNKNOWN: "Something went wrong. Please try again.",
 };
@@ -158,6 +158,29 @@ export type JudgeStatus = "active" | "disabled" | "deleted";
 
 export const SCORE_MAX = 10;
 
+/** The official marking scheme. Maxima are mirrored by CHECK constraints. */
+export const SCORE_CRITERIA = [
+  { key: "problem", label: "Problem Understanding & Relevance", max: 2 },
+  { key: "innovation", label: "Innovation & Creativity", max: 3 },
+  { key: "technical", label: "Technical Implementation & Prototype", max: 3 },
+  { key: "presentation", label: "Presentation & Feasibility", max: 2 },
+] as const;
+
+export type CriterionKey = (typeof SCORE_CRITERIA)[number]["key"];
+
+export type CriterionScores = Record<CriterionKey, number>;
+
+export const BLANK_CRITERIA: CriterionScores = {
+  problem: 0,
+  innovation: 0,
+  technical: 0,
+  presentation: 0,
+};
+
+export function criteriaTotal(scores: CriterionScores): number {
+  return Number(SCORE_CRITERIA.reduce((sum, c) => sum + (scores[c.key] ?? 0), 0).toFixed(1));
+}
+
 export interface EvaluationSettings {
   evaluation_status: EvaluationStatus;
   score_increment: number;
@@ -198,6 +221,7 @@ export interface JudgeTeamRow {
   ps_title: string | null;
   domain_name: string | null;
   my_score: number | null;
+  my_criteria: CriterionScores | null;
   evaluated: boolean;
   submitted_at: string | null;
 }
@@ -234,6 +258,7 @@ export interface EvaluationLogRow {
   team_name: string;
   ps_code: string | null;
   score: number;
+  criteria: CriterionScores;
   submitted_at: string;
   updated_at: string;
 }
@@ -262,8 +287,8 @@ export const EVALUATION_ERROR_MESSAGES: Record<string, string> = {
   UNKNOWN: "Something went wrong. Please try again.",
 };
 
-export function scoreOptions(increment: number): number[] {
-  const steps = Math.round(SCORE_MAX / increment);
+export function scoreOptions(increment: number, max: number = SCORE_MAX): number[] {
+  const steps = Math.round(max / increment);
   return Array.from({ length: steps + 1 }, (_, i) => Number((i * increment).toFixed(1)));
 }
 

@@ -27,7 +27,11 @@ export function useLiveAllocations(keys: readonly (readonly string[])[]) {
 
     const channel = supabase
       .channel("hv-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "problem_statements" }, invalidate)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "problem_statements" },
+        invalidate,
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "allocations" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "teams" }, invalidate)
       .on("postgres_changes", { event: "*", schema: "public", table: "event_settings" }, invalidate)

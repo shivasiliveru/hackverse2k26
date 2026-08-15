@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { EvaluateDialog, EvaluationBanner } from "@/components/hv/judge-chrome";
 import { formatScore } from "@/lib/hackverse-types";
-import type { JudgeTeamRow } from "@/lib/hackverse-types";
+import type { CriterionScores, JudgeTeamRow } from "@/lib/hackverse-types";
 import { submitEvaluation } from "@/lib/judge.functions";
 import { judgeTeamsQuery } from "@/lib/judge.queries";
 import { cn } from "@/lib/utils";
@@ -53,7 +53,7 @@ function JudgeTeams() {
   }, [teams, search, filter]);
 
   const submit = useMutation({
-    mutationFn: (input: { teamCode: string; score: number }) => runSubmit({ data: input }),
+    mutationFn: (input: { teamCode: string } & CriterionScores) => runSubmit({ data: input }),
     onSuccess: async (result) => {
       if (!result.ok) {
         setError(result.message ?? "Could not submit this evaluation.");
@@ -193,7 +193,7 @@ function JudgeTeams() {
             setActive(null);
             setError(null);
           }}
-          onSubmit={(score) => submit.mutate({ teamCode: active.team_code, score })}
+          onSubmit={(scores) => submit.mutate({ teamCode: active.team_code, ...scores })}
         />
       ) : null}
     </div>

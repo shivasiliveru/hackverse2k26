@@ -36,7 +36,8 @@ export function publicClient(): SupabaseClient {
     global: {
       fetch: (input: RequestInfo | URL, init?: RequestInit) => {
         const h = new Headers(init?.headers);
-        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`) h.delete("Authorization");
+        if (key.startsWith("sb_") && h.get("Authorization") === `Bearer ${key}`)
+          h.delete("Authorization");
         h.set("apikey", key);
         return fetch(input, { ...init, headers: h });
       },
@@ -85,7 +86,11 @@ export async function fetchPublicState(): Promise<PublicState> {
   const db = publicClient();
   const [statsRes, domainsRes, psRes] = await Promise.all([
     db.from("public_stats").select("*").maybeSingle(),
-    db.from("domains").select("id,name,description,display_order").eq("is_active", true).order("display_order"),
+    db
+      .from("domains")
+      .select("id,name,description,display_order")
+      .eq("is_active", true)
+      .order("display_order"),
     db
       .from("problem_statements")
       .select(
@@ -147,7 +152,12 @@ export async function verifyTeamCore(teamName: string, teamCode: string): Promis
     .maybeSingle();
 
   if (!team || team.team_name.trim().toLowerCase() !== teamName.trim().toLowerCase()) {
-    await audit({ event: "team_verification_failed", team_ref: code, actor: "participant", metadata: { teamName } });
+    await audit({
+      event: "team_verification_failed",
+      team_ref: code,
+      actor: "participant",
+      metadata: { teamName },
+    });
     return { status: "not_found" };
   }
 
@@ -159,12 +169,18 @@ export async function verifyTeamCore(teamName: string, teamCode: string): Promis
   if (team.allocation_status === "allocated") {
     const { data: alloc } = await db
       .from("allocations")
-      .select("allocation_number,selected_at,problem_statements(problem_statement_id,title),domains(name)")
+      .select(
+        "allocation_number,selected_at,problem_statements(problem_statement_id,title),domains(name)",
+      )
       .eq("team_id", team.id)
       .maybeSingle();
     const ps = one<{ problem_statement_id: string; title: string }>(alloc?.problem_statements);
     const dom = one<{ name: string }>(alloc?.domains);
-    await audit({ event: "team_verification_already_allocated", team_ref: code, actor: "participant" });
+    await audit({
+      event: "team_verification_already_allocated",
+      team_ref: code,
+      actor: "participant",
+    });
     return {
       status: "already_allocated",
       team: { team_id: team.team_id, team_name: team.team_name },
@@ -258,7 +274,11 @@ export async function registerAdminCore(
     return { ok: false, message: "Too many attempts. Please wait before trying again." };
   }
   const db = await admin();
-  const { data: setup } = await db.from("admin_setup").select("access_code").eq("id", 1).maybeSingle();
+  const { data: setup } = await db
+    .from("admin_setup")
+    .select("access_code")
+    .eq("id", 1)
+    .maybeSingle();
   if (!setup || setup.access_code !== accessCode) {
     await audit({ event: "admin_register_rejected", actor: email });
     return { ok: false, message: "Invalid organiser access code." };
@@ -267,14 +287,17 @@ export async function registerAdminCore(
   const created = await db.auth.admin.createUser({ email, password, email_confirm: true });
   let userId = created.data.user?.id;
   if (created.error) {
-    if (!/already/i.test(created.error.message)) return { ok: false, message: created.error.message };
+    if (!/already/i.test(created.error.message))
+      return { ok: false, message: created.error.message };
     const { data: list } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
     userId = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id;
     if (!userId) return { ok: false, message: "Could not register this account." };
     await db.auth.admin.updateUserById(userId, { password });
   }
 
-  await db.from("user_roles").upsert({ user_id: userId!, role: "admin" }, { onConflict: "user_id,role" });
+  await db
+    .from("user_roles")
+    .upsert({ user_id: userId!, role: "admin" }, { onConflict: "user_id,role" });
   await audit({ event: "admin_registered", actor: email });
   return { ok: true };
 }
@@ -303,7 +326,8 @@ export async function fetchAdminOverview(): Promise<AdminOverview> {
     domains: (domains.data ?? []).length,
     disqualified: teamRows.filter((t) => t.status === "disqualified").length,
     eligible: teamRows.filter((t) => t.status === "eligible").length,
-    selectionStatus: (settings.data?.selection_status as AdminOverview["selectionStatus"]) ?? "open",
+    selectionStatus:
+      (settings.data?.selection_status as AdminOverview["selectionStatus"]) ?? "open",
     eventName: (settings.data?.event_name as string) ?? "HackVerse 2K26",
     defaultCapacity: (settings.data?.default_capacity as number) ?? 2,
     activity: (activity.data ?? []) as AuditEntry[],
@@ -319,7 +343,9 @@ export async function fetchAdminTeams(): Promise<AdminTeamRow[]> {
     )
     .order("team_id");
   return (data ?? []).map((row) => {
-    const ps = one<{ problem_statement_id: string; title: string; domains: unknown }>(row.problem_statements);
+    const ps = one<{ problem_statement_id: string; title: string; domains: unknown }>(
+      row.problem_statements,
+    );
     const psDomain = one<{ name: string }>(ps?.domains);
     return {
       id: row.id as string,
@@ -345,7 +371,10 @@ export async function fetchAdminAllocations(): Promise<AdminAllocationRow[]> {
         "id,problem_statement_id,title,description,full_description,requirements,expected_solution,capacity,allocated_count,remaining_slots,status,domain_id,domains(name)",
       )
       .order("problem_statement_id"),
-    db.from("allocations").select("problem_statement_id,selected_at,teams(team_id,team_name)").eq("status", "confirmed"),
+    db
+      .from("allocations")
+      .select("problem_statement_id,selected_at,teams(team_id,team_name)")
+      .eq("status", "confirmed"),
   ]);
 
   return (psRes.data ?? []).map((row) => ({
@@ -443,7 +472,10 @@ export async function upsertProblemStatement(input: {
       .eq("id", input.id)
       .maybeSingle();
     if (existing && input.capacity < (existing.allocated_count as number)) {
-      return { ok: false, message: "Capacity cannot be lower than the number of existing allocations." };
+      return {
+        ok: false,
+        message: "Capacity cannot be lower than the number of existing allocations.",
+      };
     }
     const { error } = await db.from("problem_statements").update(payload).eq("id", input.id);
     if (error) return { ok: false, message: error.message };
@@ -459,7 +491,9 @@ export async function upsertProblemStatement(input: {
   if (error) {
     return {
       ok: false,
-      message: /duplicate/i.test(error.message) ? "That Problem Statement ID already exists." : error.message,
+      message: /duplicate/i.test(error.message)
+        ? "That Problem Statement ID already exists."
+        : error.message,
     };
   }
   await audit({
@@ -492,7 +526,9 @@ export async function saveDomain(input: {
   if (error) {
     return {
       ok: false,
-      message: /duplicate/i.test(error.message) ? "A domain with that name already exists." : error.message,
+      message: /duplicate/i.test(error.message)
+        ? "A domain with that name already exists."
+        : error.message,
     };
   }
   await audit({
@@ -503,9 +539,16 @@ export async function saveDomain(input: {
   return { ok: true };
 }
 
-export async function deleteDomainCore(id: string, actor: string): Promise<{ ok: boolean; message?: string }> {
+export async function deleteDomainCore(
+  id: string,
+  actor: string,
+): Promise<{ ok: boolean; message?: string }> {
   const db = await admin();
-  const { data: ps } = await db.from("problem_statements").select("id").eq("domain_id", id).limit(1);
+  const { data: ps } = await db
+    .from("problem_statements")
+    .select("id")
+    .eq("domain_id", id)
+    .limit(1);
   if ((ps ?? []).length > 0) {
     return { ok: false, message: "This domain contains problem statements and cannot be deleted." };
   }
@@ -542,7 +585,9 @@ export async function updateSettingsCore(input: {
   return { ok: true };
 }
 
-export async function finalizeDisqualificationsCore(actor: string): Promise<{ ok: boolean; count: number }> {
+export async function finalizeDisqualificationsCore(
+  actor: string,
+): Promise<{ ok: boolean; count: number }> {
   const db = await admin();
   const { data } = await db
     .from("teams")

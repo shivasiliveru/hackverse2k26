@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, Lock, X } from "lucide-react";
 
-import type { EvaluationSettings, JudgeTeamRow } from "@/lib/hackverse-types";
-import { formatScore, scoreOptions } from "@/lib/hackverse-types";
+import type { CriterionScores, EvaluationSettings, JudgeTeamRow } from "@/lib/hackverse-types";
+import {
+  BLANK_CRITERIA,
+  SCORE_CRITERIA,
+  criteriaTotal,
+  formatScore,
+  scoreOptions,
+} from "@/lib/hackverse-types";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------- stats */
@@ -87,31 +93,35 @@ export function EvaluationBanner({ settings }: { settings: EvaluationSettings })
 
 /* ----------------------------------------------------- score selector */
 
-export function ScoreSelector({
+export function CriterionRow({
+  label,
+  max,
   value,
   onChange,
   increment,
   disabled,
 }: {
-  value: number | null;
+  label: string;
+  max: number;
+  value: number;
   onChange: (value: number) => void;
   increment: number;
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 }) {
-  const options = useMemo(() => scoreOptions(increment), [increment]);
+  const options = useMemo(() => scoreOptions(increment, max), [increment, max]);
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between">
-        <span className="hv-label">Score</span>
-        <span className="font-display text-3xl leading-none font-black tabular-nums">
-          {value === null ? "—" : formatScore(value)}
-          <span className="text-muted-foreground"> / 10</span>
+    <div className="border border-border-strong px-3 py-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-xs font-semibold">{label}</span>
+        <span className="hv-mono shrink-0 text-sm font-bold tabular-nums">
+          {formatScore(value)}
+          <span className="text-muted-foreground"> / {max}</span>
         </span>
       </div>
 
       {/* Large tap targets: judges score from phones and tablets (§31). */}
-      <div className="mt-3 grid grid-cols-6 gap-1.5 sm:grid-cols-7">
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
         {options.map((option) => (
           <button
             key={option}
@@ -119,7 +129,7 @@ export function ScoreSelector({
             disabled={disabled}
             onClick={() => onChange(option)}
             className={cn(
-              "hv-mono min-h-11 border px-1 py-2.5 text-sm font-bold tabular-nums transition-colors disabled:opacity-40",
+              "hv-mono min-h-11 min-w-11 flex-1 border px-1 py-2 text-sm font-bold tabular-nums transition-colors disabled:opacity-40",
               option === value
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border-strong bg-surface hover:bg-surface-raised",
@@ -127,6 +137,46 @@ export function ScoreSelector({
           >
             {formatScore(option)}
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ScoreSheet({
+  scores,
+  onChange,
+  increment,
+  disabled,
+}: {
+  scores: CriterionScores;
+  onChange: (scores: CriterionScores) => void;
+  increment: number;
+  disabled?: boolean | undefined;
+}) {
+  const total = criteriaTotal(scores);
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="hv-label">Marking criteria</span>
+        <span className="font-display text-3xl leading-none font-black tabular-nums">
+          {formatScore(total)}
+          <span className="text-muted-foreground"> / 10</span>
+        </span>
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {SCORE_CRITERIA.map((criterion) => (
+          <CriterionRow
+            key={criterion.key}
+            label={criterion.label}
+            max={criterion.max}
+            increment={increment}
+            disabled={disabled}
+            value={scores[criterion.key]}
+            onChange={(value) => onChange({ ...scores, [criterion.key]: value })}
+          />
         ))}
       </div>
     </div>
@@ -146,16 +196,19 @@ export function EvaluateDialog({
   team: JudgeTeamRow;
   settings: EvaluationSettings;
   onClose: () => void;
-  onSubmit: (score: number) => void;
+  onSubmit: (scores: CriterionScores) => void;
   pending: boolean;
   error: string | null;
 }) {
-  const [score, setScore] = useState<number | null>(team.my_score);
+  const [scores, setScores] = useState<CriterionScores>(team.my_criteria ?? BLANK_CRITERIA);
+  const [touched, setTouched] = useState(team.evaluated);
   const [confirming, setConfirming] = useState(false);
 
+  const total = criteriaTotal(scores);
   const locked = team.evaluated && !settings.allow_score_editing;
   const windowOpen = settings.evaluation_status === "open";
-  const canSubmit = !locked && windowOpen && score !== null && !pending;
+  // Requiring a deliberate touch stops an accidental straight-zero submission.
+  const canSubmit = !locked && windowOpen && touched && !pending;
 
   return (
     <div
@@ -216,10 +269,11 @@ export function EvaluateDialog({
               </div>
             </div>
           ) : (
-            <ScoreSelector
-              value={score}
+            <ScoreSheet
+              scores={scores}
               onChange={(next) => {
-                setScore(next);
+                setScores(next);
+                setTouched(true);
                 setConfirming(false);
               }}
               increment={settings.score_increment}
@@ -242,10 +296,10 @@ export function EvaluateDialog({
             </p>
           ) : null}
 
-          {confirming && score !== null ? (
+          {confirming ? (
             <p className="hv-mono mt-4 border-l-2 border-primary bg-primary/10 px-3 py-2.5 text-[11px]">
               You are about to give <span className="font-bold">{team.team_name}</span> a score of{" "}
-              <span className="font-bold">{formatScore(score)}/10</span>.
+              <span className="font-bold">{formatScore(total)}/10</span>.
               {team.evaluated
                 ? " This replaces your previous score."
                 : " This cannot be changed afterwards."}
@@ -265,7 +319,7 @@ export function EvaluateDialog({
             <button
               type="button"
               disabled={!canSubmit}
-              onClick={() => score !== null && onSubmit(score)}
+              onClick={() => onSubmit(scores)}
               className="hv-mono inline-flex min-h-11 items-center justify-center gap-2 bg-primary px-5 py-2.5 text-[11px] font-bold tracking-widest text-primary-foreground uppercase disabled:opacity-50"
             >
               {pending ? (

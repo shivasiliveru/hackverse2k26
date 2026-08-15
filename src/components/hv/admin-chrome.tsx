@@ -89,7 +89,8 @@ export function AdminSidebar({
                 activeOptions={{ exact: item.to === "/admin" }}
                 activeProps={{ className: "bg-sidebar-accent text-foreground" }}
                 inactiveProps={{
-                  className: "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                  className:
+                    "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
                 }}
                 className="hv-mono flex shrink-0 items-center gap-2.5 px-3 py-2.5 text-[11px] font-bold tracking-widest uppercase transition-colors"
               >

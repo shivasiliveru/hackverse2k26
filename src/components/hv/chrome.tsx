@@ -14,7 +14,9 @@ export function HackverseMark({ className }: { className?: string }) {
         className="h-9 w-auto shrink-0"
       />
       <span className="leading-none">
-        <span className="font-display block text-sm font-extrabold tracking-tight">HACKVERSE 2K26</span>
+        <span className="font-display block text-sm font-extrabold tracking-tight">
+          HACKVERSE 2K26
+        </span>
         <span className="hv-label mt-1 block text-[10px]">Problem Statement Selection</span>
       </span>
     </Link>
@@ -122,7 +124,9 @@ export function SectionHeading({
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
         {eyebrow ? <p className="hv-label">{eyebrow}</p> : null}
-        <h2 className="font-display mt-1.5 text-xl font-extrabold tracking-tight uppercase">{title}</h2>
+        <h2 className="font-display mt-1.5 text-xl font-extrabold tracking-tight uppercase">
+          {title}
+        </h2>
       </div>
       {action}
     </div>
@@ -150,7 +154,12 @@ export function StepIndicator({ current }: { current: 1 | 2 | 3 | 4 }) {
               done && "bg-surface-raised",
             )}
           >
-            <span className={cn("hv-mono text-[11px] font-bold", !active && !done && "text-muted-foreground")}>
+            <span
+              className={cn(
+                "hv-mono text-[11px] font-bold",
+                !active && !done && "text-muted-foreground",
+              )}
+            >
               0{step.n}
             </span>
             <span
