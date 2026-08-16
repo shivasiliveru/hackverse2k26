@@ -5,7 +5,7 @@ import { Trophy } from "lucide-react";
 import { HackverseMark, LiveDot } from "@/components/hv/chrome";
 import { formatScore } from "@/lib/hackverse-types";
 import { getPublicLeaderboard } from "@/lib/participant.functions";
-import { useLiveAllocations } from "@/lib/live";
+import { LIVE_TABLES, useLiveAllocations } from "@/lib/live";
 import { cn } from "@/lib/utils";
 
 const publicLeaderboardQuery = queryOptions({
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/leaderboard")({
 
 function PublicLeaderboard() {
   const { data, isPending } = useQuery(publicLeaderboardQuery);
-  useLiveAllocations([["public-leaderboard"]]);
+  useLiveAllocations([["public-leaderboard"]], LIVE_TABLES.leaderboard);
 
   return (
     <div className="flex min-h-screen flex-col bg-background">

@@ -6,7 +6,7 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import { AdminSidebar } from "@/components/hv/admin-chrome";
 import { supabase } from "@/integrations/supabase/client";
 import { ADMIN_QUERY_KEYS, adminWhoamiQuery } from "@/lib/admin.queries";
-import { useLiveAllocations } from "@/lib/live";
+import { LIVE_TABLES, useLiveAllocations } from "@/lib/live";
 
 /**
  * Pathless layout: everything under it is admin-only. /admin/login sits
@@ -48,7 +48,7 @@ function AdminLayout() {
   // One subscription for the whole dashboard: every admin query key is
   // invalidated whenever the backend changes, which is what makes the
   // control center track the live event without a manual refresh.
-  useLiveAllocations(ADMIN_QUERY_KEYS);
+  useLiveAllocations(ADMIN_QUERY_KEYS, LIVE_TABLES.admin);
 
   async function onSignOut() {
     await supabase.auth.signOut();

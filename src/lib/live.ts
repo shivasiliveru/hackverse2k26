@@ -11,37 +11,81 @@ export const publicStateQuery = queryOptions({
 });
 
 /**
- * Subscribes once to the tables that drive live slot availability and
- * invalidates the given query keys whenever the backend changes.
+ * Realtime table sets, scoped per audience.
+ *
+ * Every subscribed row change is broadcast to every connected client, and each
+ * one triggers a refetch — so the cost is (events x clients), not (events).
+ * With ~300 participants online at open, subscribing them to a high-churn
+ * table is the difference between thousands of queries and hundreds of
+ * thousands.
+ *
+ * audit_log is the worst offender: it gains a row on every verification
+ * attempt, including typos and failures, none of which change a slot count.
+ * Participants therefore watch only the three tables that actually move the
+ * numbers on their screen.
  */
-export function useLiveAllocations(keys: readonly (readonly string[])[]) {
+export const LIVE_TABLES = {
+  /** Slot counts and open/paused/closed status. Nothing else moves these. */
+  participant: ["problem_statements", "allocations", "event_settings"],
+  /** The dashboard reports on everything, so it watches everything. */
+  admin: [
+    "problem_statements",
+    "allocations",
+    "teams",
+    "event_settings",
+    "audit_log",
+    "evaluations",
+    "judges",
+    "leaderboard_freeze",
+  ],
+  /** A judge's own progress plus the evaluation window. */
+  judge: ["evaluations", "event_settings"],
+  /** Public standings move only when a score lands or the board is frozen. */
+  leaderboard: ["evaluations", "event_settings", "leaderboard_freeze"],
+} as const;
+
+/** Coalescing window: a burst of allocations becomes one refetch, not N. */
+const INVALIDATE_DEBOUNCE_MS = 1_000;
+
+/**
+ * Subscribes once to the given tables and invalidates the given query keys
+ * whenever the backend changes, coalescing bursts.
+ */
+export function useLiveAllocations(
+  keys: readonly (readonly string[])[],
+  tables: readonly string[] = LIVE_TABLES.participant,
+) {
   const queryClient = useQueryClient();
   const signature = JSON.stringify(keys);
+  const tableSignature = JSON.stringify(tables);
 
   useEffect(() => {
+    const watched = JSON.parse(tableSignature) as string[];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     const invalidate = () => {
-      for (const key of JSON.parse(signature) as string[][]) {
-        void queryClient.invalidateQueries({ queryKey: key });
-      }
+      if (timer) return; // a refetch is already scheduled for this burst
+      timer = setTimeout(() => {
+        timer = undefined;
+        for (const key of JSON.parse(signature) as string[][]) {
+          void queryClient.invalidateQueries({ queryKey: key });
+        }
+      }, INVALIDATE_DEBOUNCE_MS);
     };
 
-    const channel = supabase
-      .channel("hv-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "problem_statements" },
-        invalidate,
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "allocations" }, invalidate)
-      .on("postgres_changes", { event: "*", schema: "public", table: "teams" }, invalidate)
-      .on("postgres_changes", { event: "*", schema: "public", table: "event_settings" }, invalidate)
-      .on("postgres_changes", { event: "*", schema: "public", table: "audit_log" }, invalidate)
-      .subscribe();
+    // Distinct channel per table set: two different subscriptions sharing one
+    // channel name would collide when both are mounted.
+    let channel = supabase.channel(`hv-live-${watched.join("-")}`);
+    for (const table of watched) {
+      channel = channel.on("postgres_changes", { event: "*", schema: "public", table }, invalidate);
+    }
+    channel.subscribe();
 
     return () => {
+      if (timer) clearTimeout(timer);
       void supabase.removeChannel(channel);
     };
-  }, [queryClient, signature]);
+  }, [queryClient, signature, tableSignature]);
 }
 
 export function formatStamp(value: string | null | undefined): string {

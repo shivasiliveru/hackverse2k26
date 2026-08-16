@@ -5,7 +5,7 @@ import { ClipboardList, LayoutDashboard, Loader2, LogOut, ShieldAlert } from "lu
 
 import { supabase } from "@/integrations/supabase/client";
 import { JUDGE_QUERY_KEYS, judgeWhoamiQuery } from "@/lib/judge.queries";
-import { useLiveAllocations } from "@/lib/live";
+import { LIVE_TABLES, useLiveAllocations } from "@/lib/live";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,7 +44,7 @@ function JudgeLayout() {
     if (isError) void navigate({ to: "/judge/login", replace: true });
   }, [isError, navigate]);
 
-  useLiveAllocations(JUDGE_QUERY_KEYS);
+  useLiveAllocations(JUDGE_QUERY_KEYS, LIVE_TABLES.judge);
 
   async function onSignOut() {
     await supabase.auth.signOut();
