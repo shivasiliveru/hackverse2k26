@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Download, FileSpreadsheet } from "lucide-react";
+import { Download, FileSpreadsheet, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   ActionButton,
@@ -16,6 +18,8 @@ import {
   teamStatusTone,
 } from "@/components/hv/admin-chrome";
 import { adminTeamsQuery } from "@/lib/admin.queries";
+import { setTeamStatus } from "@/lib/admin.functions";
+import type { AdminTeamRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
 import { downloadXlsx } from "@/lib/xlsx";
 
@@ -26,9 +30,31 @@ export const Route = createFileRoute("/admin/_dash/teams")({
 type Filter = "all" | "allocated" | "not_allocated" | "eligible" | "disqualified";
 
 function AdminTeams() {
+  const queryClient = useQueryClient();
   const { data, isPending } = useQuery(adminTeamsQuery);
+  const runSetStatus = useServerFn(setTeamStatus);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [confirming, setConfirming] = useState<AdminTeamRow | null>(null);
+
+  const changeStatus = useMutation({
+    mutationFn: (input: { teamCode: string; status: "eligible" | "disqualified" }) =>
+      runSetStatus({ data: input }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "Could not update this team.");
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-teams"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-leaderboard"] }),
+      ]);
+      setConfirming(null);
+      toast.success(`Team is now ${result.status}`);
+    },
+    onError: () => toast.error("Could not update this team."),
+  });
 
   const rows = useMemo(() => data ?? [], [data]);
 
@@ -194,8 +220,9 @@ function AdminTeams() {
                     "Domain",
                     "Selected At",
                     "Allocation",
-                  ].map((heading) => (
-                    <th key={heading} className="hv-label px-4 py-2.5 whitespace-nowrap">
+                    "",
+                  ].map((heading, index) => (
+                    <th key={index} className="hv-label px-4 py-2.5 whitespace-nowrap">
                       {heading}
                     </th>
                   ))}
@@ -243,6 +270,30 @@ function AdminTeams() {
                         tone={row.allocation_status === "allocated" ? "primary" : "neutral"}
                       />
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        {row.status === "disqualified" ? (
+                          <button
+                            type="button"
+                            disabled={changeStatus.isPending}
+                            onClick={() =>
+                              changeStatus.mutate({ teamCode: row.team_id, status: "eligible" })
+                            }
+                            className="hv-mono inline-flex items-center gap-1.5 border border-success/60 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-success uppercase transition-colors hover:bg-success/10 disabled:opacity-40"
+                          >
+                            <ShieldCheck className="h-3 w-3" /> Reinstate
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirming(row)}
+                            className="hv-mono inline-flex items-center gap-1.5 border border-destructive/60 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-destructive uppercase transition-colors hover:bg-destructive/10"
+                          >
+                            <ShieldAlert className="h-3 w-3" /> Disqualify
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -250,6 +301,61 @@ function AdminTeams() {
           </div>
         )}
       </DataPanel>
+
+      {/* ---------------------------------------------- disqualify confirm */}
+      {confirming ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm">
+          <div className="hv-panel w-full max-w-md" role="dialog" aria-modal="true">
+            <header className="border-b border-border px-5 py-4">
+              <p className="hv-label text-destructive">Confirm</p>
+              <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                Disqualify {confirming.team_name}?
+              </h2>
+              <p className="hv-mono mt-1.5 text-[11px] text-muted-foreground">
+                {confirming.team_id}
+              </p>
+            </header>
+            <div className="px-5 py-4">
+              {confirming.allocation_status === "allocated" ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    This team is holding{" "}
+                    <span className="hv-mono text-foreground">
+                      {confirming.problem_statement_code}
+                    </span>
+                    . Their allocation record is kept and the slot stays taken, so the problem
+                    statement will not be handed to another team.
+                  </p>
+                  <p className="hv-mono mt-3 border-l-2 border-warning bg-warning/10 px-3 py-2.5 text-[11px] text-warning">
+                    Nothing is deleted. You can reinstate this team at any time and they return to
+                    their allocated problem statement.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  This team has no allocation. Marking them disqualified excludes them from the
+                  event; nothing is deleted and it can be undone.
+                </p>
+              )}
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton variant="outline" onClick={() => setConfirming(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                variant="danger"
+                disabled={changeStatus.isPending}
+                onClick={() =>
+                  changeStatus.mutate({ teamCode: confirming.team_id, status: "disqualified" })
+                }
+              >
+                {changeStatus.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Disqualify team
+              </ActionButton>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

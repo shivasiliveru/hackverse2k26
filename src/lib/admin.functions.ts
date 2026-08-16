@@ -13,6 +13,7 @@ import {
   finalizeDisqualificationsCore,
   registerAdminCore,
   saveDomain,
+  setTeamStatusCore,
   updateSettingsCore,
   upsertProblemStatement,
 } from "./hackverse.server";
@@ -331,4 +332,20 @@ export const adminDeleteEvaluation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     return adminDeleteEvaluationCore(data.id, context.claims.email ?? context.userId);
+  });
+
+/** Per-team disqualify / reinstate. Never deletes the allocation record. */
+export const setTeamStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        teamCode: z.string().trim().min(1).max(40),
+        status: z.enum(["eligible", "disqualified", "inactive"]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return setTeamStatusCore(data.teamCode, data.status, context.claims.email ?? context.userId);
   });

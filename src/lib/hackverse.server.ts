@@ -602,3 +602,56 @@ export async function finalizeDisqualificationsCore(
   });
   return { ok: true, count: (data ?? []).length };
 }
+
+/**
+ * Per-team status override for organisers (§29 companion).
+ *
+ * Deliberately does NOT touch the allocation record. A disqualified team keeps
+ * its row in `allocations`, so the audit trail of who selected what survives
+ * and the problem statement's slot stays consumed — releasing it would let a
+ * different team claim a statement that was already taken, silently rewriting
+ * history. Reinstating restores the status implied by whether an allocation
+ * exists, so a team never comes back in the wrong state.
+ */
+export async function setTeamStatusCore(
+  teamCode: string,
+  status: "eligible" | "disqualified" | "inactive",
+  actor: string,
+): Promise<{ ok: boolean; message?: string; status?: string }> {
+  const db = await admin();
+  const code = teamCode.trim().toUpperCase();
+
+  const { data: team } = await db
+    .from("teams")
+    .select("id,team_id,team_name,status,allocation_status")
+    .eq("team_id", code)
+    .maybeSingle();
+
+  if (!team) return { ok: false, message: "That team could not be found." };
+
+  // "eligible" means "undo": an allocated team must return to 'allocated',
+  // otherwise the dashboard and the leaderboard would disagree with reality.
+  const next =
+    status === "eligible" && team.allocation_status === "allocated" ? "allocated" : status;
+
+  if (team.status === next) {
+    return { ok: true, status: next };
+  }
+
+  const { error } = await db.from("teams").update({ status: next }).eq("id", team.id);
+  if (error) return { ok: false, message: error.message };
+
+  await audit({
+    event: status === "disqualified" ? "admin_disqualified_team" : "admin_reinstated_team",
+    team_ref: team.team_id as string,
+    actor,
+    metadata: {
+      team_name: team.team_name as string,
+      from: team.status as string,
+      to: next,
+      kept_allocation: team.allocation_status === "allocated",
+    },
+  });
+
+  return { ok: true, status: next };
+}
