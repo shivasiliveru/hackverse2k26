@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, FileSpreadsheet } from "lucide-react";
 
 import {
   ActionButton,
@@ -17,6 +17,7 @@ import {
 } from "@/components/hv/admin-chrome";
 import { adminTeamsQuery } from "@/lib/admin.queries";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
+import { downloadXlsx } from "@/lib/xlsx";
 
 export const Route = createFileRoute("/admin/_dash/teams")({
   component: AdminTeams,
@@ -84,15 +85,71 @@ function AdminTeams() {
     downloadFile("hackverse-team-allocations.csv", csv);
   }
 
+  // Teams that actually locked a problem statement — the allocation record.
+  const allocated = useMemo(
+    () => rows.filter((row) => row.allocation_status === "allocated"),
+    [rows],
+  );
+  const disqualified = useMemo(() => rows.filter((row) => row.status === "disqualified"), [rows]);
+
+  function exportAllocatedXlsx() {
+    downloadXlsx(
+      "hackverse-allocated-teams.xlsx",
+      "Allocated Teams",
+      ["Team ID", "Team Name", "Problem Statement ID", "Problem Statement"],
+      allocated.map((row) => [
+        row.team_id,
+        row.team_name,
+        row.problem_statement_code ?? "",
+        row.problem_statement_title ?? "",
+      ]),
+    );
+  }
+
+  function exportDisqualifiedXlsx() {
+    downloadXlsx(
+      "hackverse-disqualified-teams.xlsx",
+      "Disqualified Teams",
+      ["Team ID", "Team Name"],
+      disqualified.map((row) => [row.team_id, row.team_name]),
+    );
+  }
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
         title="Teams"
         subtitle="Registered teams"
         right={
-          <ActionButton variant="outline" onClick={exportTeams} disabled={rows.length === 0}>
-            <Download className="h-3.5 w-3.5" /> Export CSV
-          </ActionButton>
+          <>
+            <ActionButton
+              variant="outline"
+              onClick={exportAllocatedXlsx}
+              disabled={allocated.length === 0}
+              title={
+                allocated.length === 0
+                  ? "No team has locked a problem statement yet"
+                  : `Export ${allocated.length} allocated teams`
+              }
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Allocated ({allocated.length})
+            </ActionButton>
+            <ActionButton
+              variant="outline"
+              onClick={exportDisqualifiedXlsx}
+              disabled={disqualified.length === 0}
+              title={
+                disqualified.length === 0
+                  ? "No team has been disqualified yet"
+                  : `Export ${disqualified.length} disqualified teams`
+              }
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Disqualified ({disqualified.length})
+            </ActionButton>
+            <ActionButton variant="outline" onClick={exportTeams} disabled={rows.length === 0}>
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </ActionButton>
+          </>
         }
       />
 
