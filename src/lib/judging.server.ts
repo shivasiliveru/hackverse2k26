@@ -249,7 +249,7 @@ export async function fetchJudgesCore(): Promise<JudgeRow[]> {
   const [judgesRes, evalsRes, teamsRes] = await Promise.all([
     db.from("judges").select("*").order("created_at"),
     db.from("evaluations").select("judge_id,score,submitted_at").eq("status", "submitted"),
-    db.from("teams").select("id").eq("is_sample", false),
+    db.from("teams").select("id").eq("is_sample", false).neq("status", "disqualified"),
   ]);
 
   const totalTeams = (teamsRes.data ?? []).length;
@@ -292,6 +292,10 @@ export async function fetchJudgeTeamsCore(judgeId: string): Promise<JudgeTeamRow
       .from("teams")
       .select("id,team_id,team_name,problem_statements(problem_statement_id,title,domains(name))")
       .eq("is_sample", false)
+      // Disqualified teams are out of the competition, so they must not
+      // appear in a judge's list at all. Any score already recorded for
+      // them stays in the database for audit.
+      .neq("status", "disqualified")
       .order("team_id"),
     // Only this judge's rows are ever fetched — §39.
     db
@@ -424,18 +428,24 @@ export async function fetchLeaderboardCore(): Promise<{
       : Promise.resolve({ data: null }),
   ]);
 
-  const base = (boardRes.data ?? []).map((r) => ({
-    team_uuid: r.team_uuid as string,
-    team_code: r.team_code as string,
-    team_name: r.team_name as string,
-    ps_code: (r.ps_code as string | null) ?? null,
-    ps_title: (r.ps_title as string | null) ?? null,
-    domain_name: (r.domain_name as string | null) ?? null,
-    total_score: num(r.total_score),
-    average_score: num(r.average_score),
-    judge_count: num(r.judge_count),
-    last_evaluated_at: (r.last_evaluated_at as string | null) ?? null,
-  }));
+  const base = (boardRes.data ?? [])
+    // A disqualified team is out of the competition and must not appear in the
+    // standings. Filtered here rather than in the view so no migration is
+    // needed against a live database — the view already exposes team_status,
+    // and every evaluation row stays untouched for audit.
+    .filter((r) => r.team_status !== "disqualified")
+    .map((r) => ({
+      team_uuid: r.team_uuid as string,
+      team_code: r.team_code as string,
+      team_name: r.team_name as string,
+      ps_code: (r.ps_code as string | null) ?? null,
+      ps_title: (r.ps_title as string | null) ?? null,
+      domain_name: (r.domain_name as string | null) ?? null,
+      total_score: num(r.total_score),
+      average_score: num(r.average_score),
+      judge_count: num(r.judge_count),
+      last_evaluated_at: (r.last_evaluated_at as string | null) ?? null,
+    }));
 
   const rows = rankLeaderboard(base, settings.ranking_method);
   const evaluated = base.filter((r) => r.judge_count > 0);
