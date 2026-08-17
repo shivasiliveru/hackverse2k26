@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
 import {
+  allotProblemStatementCore,
   assertAdmin,
   deleteDomainCore,
   fetchAdminAllocations,
@@ -348,4 +349,24 @@ export const setTeamStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context.supabase, context.userId);
     return setTeamStatusCore(data.teamCode, data.status, context.claims.email ?? context.userId);
+  });
+
+/** Admin override: hand a problem statement to a team directly. */
+export const allotProblemStatement = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        teamCode: z.string().trim().min(1).max(40),
+        psCode: z.string().trim().min(1).max(40),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return allotProblemStatementCore(
+      data.teamCode,
+      data.psCode,
+      context.claims.email ?? context.userId,
+    );
   });

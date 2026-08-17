@@ -655,3 +655,135 @@ export async function setTeamStatusCore(
 
   return { ok: true, status: next };
 }
+
+/**
+ * Admin override: allot a problem statement to a team by hand.
+ *
+ * Deliberately separate from allocate_problem_statement, which refuses once
+ * selection is closed or the global limit is reached — correct for
+ * participants, wrong for an organiser fixing something afterwards.
+ *
+ * The capacity ceiling is still honoured, because that is a real constraint on
+ * the problem statement rather than a rule about timing. Increments are done
+ * as a compare-and-set on allocated_count, so a concurrent change loses
+ * instead of silently overwriting, and the counter is rolled back if the
+ * allocation insert then fails.
+ */
+export async function allotProblemStatementCore(
+  teamCode: string,
+  psCode: string,
+  actor: string,
+): Promise<{ ok: boolean; message?: string; allocation_number?: number }> {
+  const db = await admin();
+  const code = teamCode.trim().toUpperCase();
+
+  const { data: team } = await db
+    .from("teams")
+    .select("id,team_id,team_name,status,allocation_status")
+    .eq("team_id", code)
+    .maybeSingle();
+  if (!team) return { ok: false, message: "That team could not be found." };
+  if (team.status === "disqualified") {
+    return { ok: false, message: "This team is disqualified. Reinstate it before allotting." };
+  }
+  if (team.allocation_status === "allocated") {
+    return { ok: false, message: "This team already holds a problem statement." };
+  }
+
+  const { data: ps } = await db
+    .from("problem_statements")
+    .select("id,problem_statement_id,title,domain_id,capacity,allocated_count,status")
+    .eq("problem_statement_id", psCode.trim().toUpperCase())
+    .maybeSingle();
+  if (!ps) return { ok: false, message: "That problem statement could not be found." };
+  if (ps.status !== "active")
+    return { ok: false, message: "That problem statement is not active." };
+
+  const before = ps.allocated_count as number;
+  if (before >= (ps.capacity as number)) {
+    return {
+      ok: false,
+      message:
+        "That problem statement is full. Raise its capacity first if you want to add a team.",
+    };
+  }
+
+  // Compare-and-set: only bump the counter if nobody else moved it meanwhile.
+  const { data: bumped } = await db
+    .from("problem_statements")
+    .update({ allocated_count: before + 1 })
+    .eq("id", ps.id)
+    .eq("allocated_count", before)
+    .select("id");
+
+  if (!bumped || bumped.length === 0) {
+    return { ok: false, message: "That problem statement just changed. Please try again." };
+  }
+
+  const rollback = async () => {
+    await db.from("problem_statements").update({ allocated_count: before }).eq("id", ps.id);
+  };
+
+  const { data: numbers } = await db
+    .from("allocations")
+    .select("allocation_number")
+    .order("allocation_number", { ascending: false })
+    .limit(1);
+  let next = ((numbers?.[0]?.allocation_number as number | undefined) ?? 0) + 1;
+
+  let inserted = false;
+  for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
+    const { error } = await db.from("allocations").insert({
+      team_id: team.id,
+      problem_statement_id: ps.id,
+      domain_id: ps.domain_id,
+      allocation_number: next,
+    });
+    if (!error) {
+      inserted = true;
+      break;
+    }
+    if (/duplicate|unique/i.test(error.message)) {
+      // allocation_number collided; the next one along is free.
+      next += 1;
+      continue;
+    }
+    await rollback();
+    return { ok: false, message: error.message };
+  }
+
+  if (!inserted) {
+    await rollback();
+    return { ok: false, message: "Could not assign an allocation number. Please try again." };
+  }
+
+  const { error: teamError } = await db
+    .from("teams")
+    .update({
+      status: "allocated",
+      allocation_status: "allocated",
+      selected_problem_statement_id: ps.id,
+      selected_at: new Date().toISOString(),
+    })
+    .eq("id", team.id);
+
+  if (teamError) {
+    await db.from("allocations").delete().eq("team_id", team.id);
+    await rollback();
+    return { ok: false, message: teamError.message };
+  }
+
+  await audit({
+    event: "admin_allotted_problem_statement",
+    team_ref: team.team_id as string,
+    problem_statement_ref: ps.problem_statement_id as string,
+    actor,
+    metadata: {
+      team_name: team.team_name as string,
+      title: ps.title as string,
+      allocation_number: next,
+    },
+  });
+
+  return { ok: true, allocation_number: next };
+}

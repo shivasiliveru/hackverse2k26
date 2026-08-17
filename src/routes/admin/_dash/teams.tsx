@@ -2,7 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Download, FileSpreadsheet, Loader2, ShieldAlert, ShieldCheck } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  ListPlus,
+  Loader2,
+  ShieldAlert,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -17,8 +25,8 @@ import {
   Toolbar,
   teamStatusTone,
 } from "@/components/hv/admin-chrome";
-import { adminTeamsQuery } from "@/lib/admin.queries";
-import { setTeamStatus } from "@/lib/admin.functions";
+import { adminAllocationsQuery, adminTeamsQuery } from "@/lib/admin.queries";
+import { allotProblemStatement, setTeamStatus } from "@/lib/admin.functions";
 import type { AdminTeamRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
 import { downloadXlsx } from "@/lib/xlsx";
@@ -33,9 +41,42 @@ function AdminTeams() {
   const queryClient = useQueryClient();
   const { data, isPending } = useQuery(adminTeamsQuery);
   const runSetStatus = useServerFn(setTeamStatus);
+  const runAllot = useServerFn(allotProblemStatement);
+  const psList = useQuery(adminAllocationsQuery);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [confirming, setConfirming] = useState<AdminTeamRow | null>(null);
+  const [allotting, setAllotting] = useState<AdminTeamRow | null>(null);
+  const [chosenPs, setChosenPs] = useState("");
+  const [allotError, setAllotError] = useState<string | null>(null);
+
+  // Only statements with room can be offered; the backend enforces this
+  // again, but an organiser should not be able to pick a full one at all.
+  const openPs = useMemo(
+    () => (psList.data ?? []).filter((p) => p.remaining_slots > 0 && p.status === "active"),
+    [psList.data],
+  );
+
+  const allot = useMutation({
+    mutationFn: (input: { teamCode: string; psCode: string }) => runAllot({ data: input }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        setAllotError(result.message ?? "Could not allot this problem statement.");
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-teams"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-allocations"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-leaderboard"] }),
+      ]);
+      setAllotting(null);
+      setChosenPs("");
+      setAllotError(null);
+      toast.success(`Allotted — allocation #${result.allocation_number}`);
+    },
+    onError: () => setAllotError("Could not allot this problem statement. Please try again."),
+  });
 
   const changeStatus = useMutation({
     mutationFn: (input: { teamCode: string; status: "eligible" | "disqualified" }) =>
@@ -271,7 +312,20 @@ function AdminTeams() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-1.5">
+                        {row.status !== "disqualified" && row.allocation_status !== "allocated" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAllotError(null);
+                              setChosenPs(openPs[0]?.code ?? "");
+                              setAllotting(row);
+                            }}
+                            className="hv-mono inline-flex items-center gap-1.5 border border-primary/60 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-primary uppercase transition-colors hover:bg-primary/10"
+                          >
+                            <ListPlus className="h-3 w-3" /> Allot
+                          </button>
+                        ) : null}
                         {row.status === "disqualified" ? (
                           <button
                             type="button"
@@ -301,6 +355,86 @@ function AdminTeams() {
           </div>
         )}
       </DataPanel>
+
+      {/* ------------------------------------------------------ allot PS */}
+      {allotting ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm">
+          <div className="hv-panel w-full max-w-lg" role="dialog" aria-modal="true">
+            <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div className="min-w-0">
+                <p className="hv-label">Allot problem statement</p>
+                <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                  {allotting.team_name}
+                </h2>
+                <p className="hv-mono mt-1.5 text-[11px] text-muted-foreground">
+                  {allotting.team_id}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAllotting(null)}
+                aria-label="Close"
+                className="shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <div className="px-5 py-4">
+              {openPs.length === 0 ? (
+                <p className="hv-mono border-l-2 border-warning bg-warning/10 px-3 py-2.5 text-[11px] text-warning">
+                  Every problem statement is full. Raise a capacity on the Problem Statements page
+                  first, then come back here.
+                </p>
+              ) : (
+                <label className="block">
+                  <span className="hv-label mb-2 block">
+                    Problem statement ({openPs.length} with free slots)
+                  </span>
+                  <select
+                    value={chosenPs}
+                    onChange={(e) => {
+                      setChosenPs(e.target.value);
+                      setAllotError(null);
+                    }}
+                    className="w-full border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
+                  >
+                    {openPs.map((p) => (
+                      <option key={p.id} value={p.code}>
+                        {p.code} — {p.title} ({p.remaining_slots} free)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <p className="hv-mono mt-4 border-l-2 border-border-strong bg-surface-raised px-3 py-2.5 text-[10px] text-muted-foreground">
+                This bypasses the closed-selection and 50-team limits, which apply to participants
+                rather than organisers. The problem statement&apos;s own capacity is still enforced.
+              </p>
+
+              {allotError ? (
+                <p className="hv-mono mt-3 border-l-2 border-destructive bg-destructive/10 px-3 py-2.5 text-[11px] text-destructive">
+                  {allotError}
+                </p>
+              ) : null}
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton variant="outline" onClick={() => setAllotting(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                disabled={allot.isPending || openPs.length === 0 || !chosenPs}
+                onClick={() => allot.mutate({ teamCode: allotting.team_id, psCode: chosenPs })}
+              >
+                {allot.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Allot problem statement
+              </ActionButton>
+            </footer>
+          </div>
+        </div>
+      ) : null}
 
       {/* ---------------------------------------------- disqualify confirm */}
       {confirming ? (
