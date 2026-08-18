@@ -162,6 +162,7 @@ export const finalizeDisqualifications = createServerFn({ method: "POST" })
 /* ------------------------------------------------------------- judging */
 
 import {
+  adminAddMarksCore,
   adminDeleteEvaluationCore,
   adminUpdateEvaluationCore,
   createJudgeCore,
@@ -367,6 +368,34 @@ export const allotProblemStatement = createServerFn({ method: "POST" })
     return allotProblemStatementCore(
       data.teamCode,
       data.psCode,
+      context.claims.email ?? context.userId,
+    );
+  });
+
+/** Organiser-entered marks for a team, straight from the leaderboard. */
+export const adminAddMarks = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        teamCode: z.string().trim().min(1).max(40),
+        problem: z.number().min(0).max(2),
+        innovation: z.number().min(0).max(3),
+        technical: z.number().min(0).max(3),
+        presentation: z.number().min(0).max(2),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return adminAddMarksCore(
+      data.teamCode,
+      {
+        problem: data.problem,
+        innovation: data.innovation,
+        technical: data.technical,
+        presentation: data.presentation,
+      },
       context.claims.email ?? context.userId,
     );
   });

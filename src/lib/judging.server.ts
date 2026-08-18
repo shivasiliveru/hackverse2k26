@@ -683,3 +683,127 @@ export async function adminDeleteEvaluationCore(
   });
   return { ok: true };
 }
+
+/* ------------------------------------------------- admin-entered marks */
+
+const ORGANISER_USERNAME = "organiser";
+
+/**
+ * Marks entered by an organiser still need a judge identity, because
+ * evaluations.judge_id is NOT NULL and the leaderboard aggregates per judge.
+ * Rather than loosen the schema, admin marks are attributed to a single
+ * locked account so they remain visible, attributable and editable exactly
+ * like any other score.
+ *
+ * The account is disabled and its auth user is banned, so it can never be
+ * used to sign in — it exists only to own these rows. It is also excluded
+ * from the active-judge count, so "Judges: N" keeps reporting real people.
+ */
+async function ensureOrganiserJudge(): Promise<{ id: string } | { error: string }> {
+  const db = await admin();
+
+  const { data: existing } = await db
+    .from("judges")
+    .select("id")
+    .eq("username", ORGANISER_USERNAME)
+    .maybeSingle();
+  if (existing) return { id: existing.id as string };
+
+  const password = `org-${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  const created = await db.auth.admin.createUser({
+    email: judgeEmail(ORGANISER_USERNAME),
+    password,
+    email_confirm: true,
+    user_metadata: { organiser_entry: true },
+  });
+  if (created.error || !created.data.user) {
+    return { error: created.error?.message ?? "Could not create the organiser entry account." };
+  }
+
+  const { data: row, error } = await db
+    .from("judges")
+    .insert({
+      user_id: created.data.user.id,
+      username: ORGANISER_USERNAME,
+      name: "Organiser (manual entry)",
+      status: "disabled",
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error || !row) {
+    await db.auth.admin.deleteUser(created.data.user.id);
+    return { error: error?.message ?? "Could not create the organiser entry account." };
+  }
+
+  await db.auth.admin.updateUserById(created.data.user.id, { ban_duration: "876000h" });
+  return { id: row.id as string };
+}
+
+export async function adminAddMarksCore(
+  teamCode: string,
+  criteria: CriterionScores,
+  actor: string,
+): Promise<{ ok: boolean; message?: string; score?: number; updated?: boolean }> {
+  const db = await admin();
+  const code = teamCode.trim().toUpperCase();
+
+  const { data: team } = await db
+    .from("teams")
+    .select("id,team_id,team_name,status")
+    .eq("team_id", code)
+    .maybeSingle();
+  if (!team) return { ok: false, message: "That team could not be found." };
+  if (team.status === "disqualified") {
+    return { ok: false, message: "This team is disqualified and is not ranked." };
+  }
+
+  const judge = await ensureOrganiserJudge();
+  if ("error" in judge) return { ok: false, message: judge.error };
+
+  const total = criteriaTotal(criteria);
+  const row = {
+    judge_id: judge.id,
+    team_id: team.id,
+    score_problem: criteria.problem,
+    score_innovation: criteria.innovation,
+    score_technical: criteria.technical,
+    score_presentation: criteria.presentation,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data: existing } = await db
+    .from("evaluations")
+    .select("id,score")
+    .eq("judge_id", judge.id)
+    .eq("team_id", team.id)
+    .maybeSingle();
+
+  // Upsert rather than insert: re-entering marks for the same team should
+  // correct the existing row, not collide with the one-per-judge constraint.
+  const { error } = existing
+    ? await db.from("evaluations").update(row).eq("id", existing.id)
+    : await db.from("evaluations").insert(row);
+
+  if (error) {
+    return {
+      ok: false,
+      message: /violates check constraint/i.test(error.message)
+        ? "One of the marks is above its maximum for that criterion."
+        : error.message,
+    };
+  }
+
+  await audit({
+    event: existing ? "admin_updated_team_marks" : "admin_added_team_marks",
+    team_ref: team.team_id as string,
+    actor,
+    metadata: {
+      team_name: team.team_name as string,
+      score: total,
+      previous_score: existing ? num(existing.score) : null,
+    },
+  });
+
+  return { ok: true, score: total, updated: Boolean(existing) };
+}

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Download, Loader2, Lock, LockOpen, Trophy, X } from "lucide-react";
+import { Download, Loader2, Lock, LockOpen, SquarePen, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -19,9 +19,10 @@ import {
 } from "@/components/hv/admin-chrome";
 import { LiveDot, Metric } from "@/components/hv/chrome";
 import { adminLeaderboardQuery } from "@/lib/admin.queries";
-import { adminTeamEvaluations, freezeLeaderboard } from "@/lib/admin.functions";
-import { SCORE_CRITERIA, formatScore } from "@/lib/hackverse-types";
-import type { EvaluationLogRow, LeaderboardRow } from "@/lib/hackverse-types";
+import { ScoreSheet } from "@/components/hv/judge-chrome";
+import { adminAddMarks, adminTeamEvaluations, freezeLeaderboard } from "@/lib/admin.functions";
+import { BLANK_CRITERIA, SCORE_CRITERIA, criteriaTotal, formatScore } from "@/lib/hackverse-types";
+import type { CriterionScores, EvaluationLogRow, LeaderboardRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
 import { cn } from "@/lib/utils";
 
@@ -37,11 +38,15 @@ function AdminLeaderboard() {
   const { data, isPending } = useQuery(adminLeaderboardQuery);
   const runFreeze = useServerFn(freezeLeaderboard);
   const runBreakdown = useServerFn(adminTeamEvaluations);
+  const runAddMarks = useServerFn(adminAddMarks);
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("rank");
   const [confirmFreeze, setConfirmFreeze] = useState(false);
+  const [marking, setMarking] = useState<LeaderboardRow | null>(null);
+  const [marks, setMarks] = useState<CriterionScores>(BLANK_CRITERIA);
+  const [markError, setMarkError] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ row: LeaderboardRow; rows: EvaluationLogRow[] } | null>(
     null,
   );
@@ -95,6 +100,27 @@ function AdminLeaderboard() {
       );
     },
     onError: () => toast.error("Could not update the leaderboard freeze."),
+  });
+
+  const addMarks = useMutation({
+    mutationFn: (input: { teamCode: string } & CriterionScores) => runAddMarks({ data: input }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        setMarkError(result.message ?? "Could not save these marks.");
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-leaderboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-evaluations"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-judges"] }),
+      ]);
+      setMarking(null);
+      setMarkError(null);
+      toast.success(
+        `${result.updated ? "Marks updated" : "Marks added"} \u2014 ${formatScore(result.score ?? 0)}/10`,
+      );
+    },
+    onError: () => setMarkError("Could not save these marks. Please try again."),
   });
 
   const breakdown = useMutation({
@@ -343,6 +369,28 @@ function AdminLeaderboard() {
                     <td className="font-display px-4 py-3 text-base font-black tabular-nums">
                       {formatScore(row.total_score)}
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          disabled={frozen}
+                          title={
+                            frozen
+                              ? "Unfreeze the leaderboard to change marks"
+                              : "Enter marks for this team"
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setMarkError(null);
+                            setMarks(BLANK_CRITERIA);
+                            setMarking(row);
+                          }}
+                          className="hv-mono inline-flex items-center gap-1.5 border border-primary/60 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-primary uppercase transition-colors hover:bg-primary/10 disabled:opacity-40"
+                        >
+                          <SquarePen className="h-3 w-3" /> Marks
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -350,6 +398,80 @@ function AdminLeaderboard() {
           </div>
         )}
       </DataPanel>
+
+      {/* ------------------------------------------------- admin marks */}
+      {marking ? (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-background/80 p-4 backdrop-blur-sm sm:p-8"
+          onClick={() => setMarking(null)}
+        >
+          <div
+            className="hv-panel w-full max-w-xl"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div className="min-w-0">
+                <p className="hv-label">Organiser marks</p>
+                <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                  {marking.team_name}
+                </h2>
+                <p className="hv-mono mt-1.5 text-[11px] text-muted-foreground">
+                  {marking.team_code}
+                  {marking.ps_code ? ` \u00b7 ${marking.ps_code}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMarking(null)}
+                aria-label="Close"
+                className="shrink-0 p-1 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <div className="px-5 py-4">
+              <ScoreSheet
+                scores={marks}
+                onChange={(next) => {
+                  setMarks(next);
+                  setMarkError(null);
+                }}
+                increment={settings.score_increment}
+                disabled={addMarks.isPending}
+              />
+
+              <p className="hv-mono mt-4 border-l-2 border-border-strong bg-surface-raised px-3 py-2.5 text-[10px] text-muted-foreground">
+                Recorded against a locked &quot;Organiser (manual entry)&quot; account so the entry
+                stays attributable and appears in the evaluation log. It counts toward the total
+                alongside judge scores. Entering marks again for this team replaces this row rather
+                than adding a second one.
+              </p>
+
+              {markError ? (
+                <p className="hv-mono mt-3 border-l-2 border-destructive bg-destructive/10 px-3 py-2.5 text-[11px] text-destructive">
+                  {markError}
+                </p>
+              ) : null}
+            </div>
+
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton variant="outline" onClick={() => setMarking(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                disabled={addMarks.isPending}
+                onClick={() => addMarks.mutate({ teamCode: marking.team_code, ...marks })}
+              >
+                {addMarks.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Save marks ({formatScore(criteriaTotal(marks))}/10)
+              </ActionButton>
+            </footer>
+          </div>
+        </div>
+      ) : null}
 
       {/* ------------------------------------------------------ breakdown */}
       {detail ? (
