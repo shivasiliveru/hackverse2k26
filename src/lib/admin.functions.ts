@@ -172,6 +172,7 @@ import {
   fetchLeaderboardCore,
   fetchTeamEvaluationsCore,
   freezeLeaderboardCore,
+  resetAllScoresCore,
   resetJudgePasswordCore,
   setJudgeStatusCore,
   updateEvaluationSettingsCore,
@@ -398,4 +399,19 @@ export const adminAddMarks = createServerFn({ method: "POST" })
       },
       context.claims.email ?? context.userId,
     );
+  });
+
+/**
+ * Wipes every evaluation. The core snapshots them to the audit log first and
+ * refuses to delete if that backup fails, so a reset is always recoverable.
+ */
+export const resetAllScores = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    // Requiring the literal word makes an accidental empty POST a no-op.
+    z.object({ confirm: z.literal("RESET") }).parse(data),
+  )
+  .handler(async ({ context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return resetAllScoresCore(context.claims.email ?? context.userId);
   });

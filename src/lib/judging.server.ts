@@ -807,3 +807,85 @@ export async function adminAddMarksCore(
 
   return { ok: true, score: total, updated: Boolean(existing) };
 }
+
+/** PostgREST requires a filter on DELETE; nothing can hold the nil UUID. */
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Clears every score so judging can start again.
+ *
+ * The rows themselves have to go: the one-evaluation-per-judge-per-team
+ * constraint means zeroing them in place would leave judges unable to
+ * re-submit. To keep the action recoverable, a full snapshot of every
+ * evaluation is written to the audit log FIRST, and the delete only runs if
+ * that write succeeded — so a reset can never destroy scores that were not
+ * recorded somewhere.
+ *
+ * Only evaluations are touched. Teams, allocations, judges, problem
+ * statements and settings are left exactly as they are.
+ */
+export async function resetAllScoresCore(
+  actor: string,
+): Promise<{ ok: boolean; message?: string; cleared?: number }> {
+  const db = await admin();
+
+  const settings = await fetchEvaluationSettings();
+  if (settings.leaderboard_frozen) {
+    return {
+      ok: false,
+      message: "The leaderboard is frozen. Unfreeze it before resetting scores.",
+    };
+  }
+
+  const { data: rows, error: readError } = await db
+    .from("evaluations")
+    .select(
+      "id,score,score_problem,score_innovation,score_technical,score_presentation,submitted_at," +
+        "judges(username),teams(team_id)",
+    );
+  if (readError) return { ok: false, message: readError.message };
+
+  const all = rows ?? [];
+  if (all.length === 0) return { ok: true, cleared: 0 };
+
+  // Compact so the whole snapshot fits comfortably in one jsonb column.
+  const snapshot = (all as unknown as Record<string, unknown>[]).map((r) => ({
+    j: one<{ username: string }>(r["judges"])?.username ?? "?",
+    t: one<{ team_id: string }>(r["teams"])?.team_id ?? "?",
+    s: num(r["score"]),
+    p: num(r["score_problem"]),
+    i: num(r["score_innovation"]),
+    n: num(r["score_technical"]),
+    r: num(r["score_presentation"]),
+    at: r["submitted_at"] as string,
+  }));
+
+  const { error: snapshotError } = await db.from("audit_log").insert({
+    event: "admin_reset_scores_snapshot",
+    actor,
+    metadata: {
+      count: all.length,
+      total_points: snapshot.reduce((sum, r) => sum + r.s, 0),
+      evaluations: snapshot,
+    },
+  });
+
+  // Refuse to delete anything if the backup could not be stored.
+  if (snapshotError) {
+    return {
+      ok: false,
+      message: `Could not save a backup of the scores, so nothing was deleted (${snapshotError.message}).`,
+    };
+  }
+
+  const { error: deleteError } = await db.from("evaluations").delete().neq("id", ZERO_UUID);
+  if (deleteError) return { ok: false, message: deleteError.message };
+
+  await audit({
+    event: "admin_reset_all_scores",
+    actor,
+    metadata: { cleared: all.length },
+  });
+
+  return { ok: true, cleared: all.length };
+}

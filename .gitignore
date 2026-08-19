@@ -39,3 +39,6 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local score backups taken before destructive operations
+backups/

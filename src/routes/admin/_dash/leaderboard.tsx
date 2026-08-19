@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { Download, Loader2, Lock, LockOpen, SquarePen, Trophy, X } from "lucide-react";
+import { Download, Loader2, Lock, LockOpen, RotateCcw, SquarePen, Trophy, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -20,7 +20,12 @@ import {
 import { LiveDot, Metric } from "@/components/hv/chrome";
 import { adminLeaderboardQuery } from "@/lib/admin.queries";
 import { ScoreSheet } from "@/components/hv/judge-chrome";
-import { adminAddMarks, adminTeamEvaluations, freezeLeaderboard } from "@/lib/admin.functions";
+import {
+  adminAddMarks,
+  adminTeamEvaluations,
+  freezeLeaderboard,
+  resetAllScores,
+} from "@/lib/admin.functions";
 import { BLANK_CRITERIA, SCORE_CRITERIA, criteriaTotal, formatScore } from "@/lib/hackverse-types";
 import type { CriterionScores, EvaluationLogRow, LeaderboardRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
@@ -39,6 +44,7 @@ function AdminLeaderboard() {
   const runFreeze = useServerFn(freezeLeaderboard);
   const runBreakdown = useServerFn(adminTeamEvaluations);
   const runAddMarks = useServerFn(adminAddMarks);
+  const runReset = useServerFn(resetAllScores);
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -47,6 +53,8 @@ function AdminLeaderboard() {
   const [marking, setMarking] = useState<LeaderboardRow | null>(null);
   const [marks, setMarks] = useState<CriterionScores>(BLANK_CRITERIA);
   const [markError, setMarkError] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetText, setResetText] = useState("");
   const [detail, setDetail] = useState<{ row: LeaderboardRow; rows: EvaluationLogRow[] } | null>(
     null,
   );
@@ -123,6 +131,25 @@ function AdminLeaderboard() {
     onError: () => setMarkError("Could not save these marks. Please try again."),
   });
 
+  const reset = useMutation({
+    mutationFn: () => runReset({ data: { confirm: "RESET" as const } }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "Could not reset the scores.");
+        return;
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-leaderboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-evaluations"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-judges"] }),
+      ]);
+      setConfirmReset(false);
+      setResetText("");
+      toast.success(`Scores reset — ${result.cleared} evaluations cleared`);
+    },
+    onError: () => toast.error("Could not reset the scores."),
+  });
+
   const breakdown = useMutation({
     mutationFn: (row: LeaderboardRow) =>
       runBreakdown({ data: { teamCode: row.team_code } }).then((rows) => ({ row, rows })),
@@ -170,6 +197,23 @@ function AdminLeaderboard() {
               disabled={visible.length === 0}
             >
               <Download className="h-3.5 w-3.5" /> Export CSV
+            </ActionButton>
+            <ActionButton
+              variant="danger"
+              onClick={() => {
+                setResetText("");
+                setConfirmReset(true);
+              }}
+              disabled={frozen || data.stats.evaluations === 0}
+              title={
+                frozen
+                  ? "Unfreeze the leaderboard before resetting scores"
+                  : data.stats.evaluations === 0
+                    ? "There are no scores to reset"
+                    : "Clear every evaluation"
+              }
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Reset scores
             </ActionButton>
             <ActionButton
               variant={frozen ? "outline" : "danger"}
@@ -398,6 +442,67 @@ function AdminLeaderboard() {
           </div>
         )}
       </DataPanel>
+
+      {/* --------------------------------------------------- reset scores */}
+      {confirmReset ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm">
+          <div className="hv-panel w-full max-w-md" role="dialog" aria-modal="true">
+            <header className="border-b border-border px-5 py-4">
+              <p className="hv-label text-destructive">Destructive</p>
+              <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                Reset all scores?
+              </h2>
+            </header>
+            <div className="px-5 py-4">
+              <p className="text-sm text-muted-foreground">
+                This deletes all{" "}
+                <span className="text-foreground">{data.stats.evaluations} evaluations</span> across{" "}
+                <span className="text-foreground">{data.stats.judges} judges</span>. Every team
+                returns to a score of zero and judges can evaluate again from scratch.
+              </p>
+
+              <p className="hv-mono mt-3 border-l-2 border-success bg-success/10 px-3 py-2.5 text-[11px] text-success">
+                A full copy of every score is written to the activity log first. If that backup
+                cannot be saved, nothing is deleted.
+              </p>
+
+              <p className="hv-mono mt-3 border-l-2 border-border-strong bg-surface-raised px-3 py-2.5 text-[10px] text-muted-foreground">
+                Teams, allocations, judges and problem statements are not touched. Export the
+                evaluation report first if you want a spreadsheet copy.
+              </p>
+
+              <p className="mt-4 text-sm text-muted-foreground">
+                Type <span className="hv-mono text-foreground">RESET</span> to confirm.
+              </p>
+              <input
+                value={resetText}
+                onChange={(e) => setResetText(e.target.value.toUpperCase())}
+                placeholder="RESET"
+                className="hv-mono mt-2 w-full border border-input bg-background px-3 py-2.5 text-sm tracking-widest outline-none focus:border-destructive"
+              />
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton
+                variant="outline"
+                onClick={() => {
+                  setConfirmReset(false);
+                  setResetText("");
+                }}
+              >
+                Cancel
+              </ActionButton>
+              <ActionButton
+                variant="danger"
+                disabled={resetText !== "RESET" || reset.isPending}
+                onClick={() => reset.mutate()}
+              >
+                {reset.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Reset all scores
+              </ActionButton>
+            </footer>
+          </div>
+        </div>
+      ) : null}
 
       {/* ------------------------------------------------- admin marks */}
       {marking ? (
