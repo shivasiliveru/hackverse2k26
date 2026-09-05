@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { admin, audit } from "./hackverse.server";
 import type {
+  CriterionMaxima,
   CriterionScores,
   EvaluationLogRow,
   EvaluationSettings,
@@ -12,7 +13,12 @@ import type {
   LeaderboardStats,
   RankingMethod,
 } from "./hackverse-types";
-import { EVALUATION_ERROR_MESSAGES, criteriaTotal } from "./hackverse-types";
+import {
+  DEFAULT_MAXIMA,
+  EVALUATION_ERROR_MESSAGES,
+  criteriaTotal,
+  criteriaWithMax,
+} from "./hackverse-types";
 
 /* ------------------------------------------------------------ helpers */
 
@@ -23,6 +29,12 @@ function one<T>(value: unknown): T | null {
 }
 
 const num = (value: unknown): number => Number(value ?? 0);
+
+/** Reads an optional per-judge ceiling; absent or NULL means "use default". */
+function pickMax(row: unknown, key: string): number | null {
+  const value = (row as Record<string, unknown> | null)?.[key];
+  return value === null || value === undefined ? null : Number(value);
+}
 
 /**
  * Judge accounts are Supabase Auth users with a row in `judges`. The username
@@ -74,7 +86,8 @@ export async function judgeWhoamiCore(
 
 const SETTINGS_COLUMNS =
   "evaluation_status,score_increment,allow_score_editing,evaluation_start,evaluation_end," +
-  "leaderboard_public,leaderboard_frozen,leaderboard_frozen_at,ranking_method,judges_see_others,max_judges";
+  "leaderboard_public,leaderboard_frozen,leaderboard_frozen_at,ranking_method,judges_see_others,max_judges," +
+  "max_problem,max_innovation,max_technical,max_presentation";
 
 export async function fetchEvaluationSettings(): Promise<EvaluationSettings> {
   const db = await admin();
@@ -97,12 +110,29 @@ export async function fetchEvaluationSettings(): Promise<EvaluationSettings> {
     ranking_method: (data?.["ranking_method"] as RankingMethod) ?? "total",
     judges_see_others: data?.["judges_see_others"] === true,
     max_judges: (data?.["max_judges"] as number | null) ?? null,
+    // Falls back to the published scheme if the columns are not present
+    // yet, so the app keeps working before the migration is applied.
+    maxima: {
+      problem: num(data?.["max_problem"]) || DEFAULT_MAXIMA.problem,
+      innovation: num(data?.["max_innovation"]) || DEFAULT_MAXIMA.innovation,
+      technical: num(data?.["max_technical"]) || DEFAULT_MAXIMA.technical,
+      presentation: num(data?.["max_presentation"]) || DEFAULT_MAXIMA.presentation,
+    },
   };
 }
 
 // Written out rather than Partial<> because exactOptionalPropertyTypes makes
 // an optional key and an explicitly-undefined value different types.
-type SettingsPatch = { [K in keyof EvaluationSettings]?: EvaluationSettings[K] | undefined };
+// maxima is a shaped read of four flat columns, so it is excluded here and
+// the columns are patched individually.
+type SettingsPatch = {
+  [K in Exclude<keyof EvaluationSettings, "maxima">]?: EvaluationSettings[K] | undefined;
+} & {
+  max_problem?: number | undefined;
+  max_innovation?: number | undefined;
+  max_technical?: number | undefined;
+  max_presentation?: number | undefined;
+};
 
 export async function updateEvaluationSettingsCore(
   input: SettingsPatch & { actor: string },
@@ -279,11 +309,45 @@ export async function fetchJudgesCore(): Promise<JudgeRow[]> {
             .sort()
             .at(-1)!
         : null,
+      // null on a criterion means this judge follows the event default.
+      maxima: {
+        problem: pickMax(j, "max_problem"),
+        innovation: pickMax(j, "max_innovation"),
+        technical: pickMax(j, "max_technical"),
+        presentation: pickMax(j, "max_presentation"),
+      },
     };
   });
 }
 
 /* -------------------------------------------------------- judge views */
+
+/**
+ * A judge's own ceilings when set, otherwise the event default. Returned with
+ * their team list so the score sheet renders exactly the marks they may give.
+ */
+export async function judgeMaxima(judgeId: string): Promise<CriterionMaxima> {
+  const db = await admin();
+  const settings = await fetchEvaluationSettings();
+  const { data } = await db
+    .from("judges")
+    .select("max_problem,max_innovation,max_technical,max_presentation")
+    .eq("id", judgeId)
+    .maybeSingle();
+
+  const row = data as Record<string, unknown> | null;
+  const pick = (key: string, fallback: number) => {
+    const value = row?.[key];
+    return value === null || value === undefined ? fallback : Number(value);
+  };
+
+  return {
+    problem: pick("max_problem", settings.maxima.problem),
+    innovation: pick("max_innovation", settings.maxima.innovation),
+    technical: pick("max_technical", settings.maxima.technical),
+    presentation: pick("max_presentation", settings.maxima.presentation),
+  };
+}
 
 export async function fetchJudgeTeamsCore(judgeId: string): Promise<JudgeTeamRow[]> {
   const db = await admin();
@@ -764,6 +828,17 @@ export async function adminAddMarksCore(
     return { ok: false, message: "This team is disqualified and is not ranked." };
   }
 
+  // Enforce the configured ceilings here. The database constraint is only a
+  // wide sanity bound now that maxima are configurable, so this is the check
+  // that actually holds an organiser to the marking scheme they set.
+  const settings = await fetchEvaluationSettings();
+  const overMax = criteriaWithMax(settings.maxima).find(
+    (c) => criteria[c.key] < 0 || criteria[c.key] > c.max,
+  );
+  if (overMax) {
+    return { ok: false, message: `${overMax.label} must be between 0 and ${overMax.max}.` };
+  }
+
   const judge = await ensureOrganiserJudge();
   if ("error" in judge) return { ok: false, message: judge.error };
 
@@ -894,4 +969,50 @@ export async function resetAllScoresCore(
   });
 
   return { ok: true, cleared: all.length };
+}
+
+/**
+ * Per-judge mark ceilings. NULL on any criterion means "use the event
+ * default", which is how a judge is returned to the standard scheme.
+ */
+export async function setJudgeMaximaCore(
+  id: string,
+  maxima: { [K in keyof CriterionMaxima]: number | null },
+  actor: string,
+): Promise<{ ok: boolean; message?: string }> {
+  const db = await admin();
+  const { data: judge } = await db.from("judges").select("username").eq("id", id).maybeSingle();
+  if (!judge) return { ok: false, message: "Judge not found." };
+
+  const { error } = await db
+    .from("judges")
+    .update({
+      max_problem: maxima.problem,
+      max_innovation: maxima.innovation,
+      max_technical: maxima.technical,
+      max_presentation: maxima.presentation,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return {
+      ok: false,
+      message: /column .* does not exist/i.test(error.message)
+        ? "Run supabase/configurable-marks.sql first — the per-judge columns do not exist yet."
+        : error.message,
+    };
+  }
+
+  await audit({
+    event: "admin_set_judge_maxima",
+    actor,
+    metadata: {
+      username: judge.username as string,
+      problem: maxima.problem,
+      innovation: maxima.innovation,
+      technical: maxima.technical,
+      presentation: maxima.presentation,
+    },
+  });
+  return { ok: true };
 }

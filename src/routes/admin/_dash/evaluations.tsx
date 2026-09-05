@@ -307,6 +307,7 @@ function AdminEvaluations() {
 
             <div className="px-5 py-4">
               <ScoreSheet
+                maxima={settings.data?.maxima}
                 scores={scores}
                 onChange={setScores}
                 increment={settings.data?.score_increment ?? 0.5}
@@ -335,7 +336,7 @@ function AdminEvaluations() {
                 onClick={() => update.mutate({ id: editing.id, ...scores })}
               >
                 {update.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                Save marks ({formatScore(criteriaTotal(scores))}/10)
+                Save marks ({formatScore(criteriaTotal(scores))})
               </ActionButton>
             </footer>
           </div>

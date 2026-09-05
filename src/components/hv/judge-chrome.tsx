@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, Lock, X } from "lucide-react";
 
-import type { CriterionScores, EvaluationSettings, JudgeTeamRow } from "@/lib/hackverse-types";
+import type {
+  CriterionMaxima,
+  CriterionScores,
+  EvaluationSettings,
+  JudgeTeamRow,
+} from "@/lib/hackverse-types";
 import {
   BLANK_CRITERIA,
-  SCORE_CRITERIA,
+  DEFAULT_MAXIMA,
   criteriaTotal,
+  criteriaWithMax,
   formatScore,
   scoreOptions,
+  totalPossible,
 } from "@/lib/hackverse-types";
 import { cn } from "@/lib/utils";
 
@@ -148,13 +155,16 @@ export function ScoreSheet({
   onChange,
   increment,
   disabled,
+  maxima = DEFAULT_MAXIMA,
 }: {
   scores: CriterionScores;
   onChange: (scores: CriterionScores) => void;
   increment: number;
   disabled?: boolean | undefined;
+  maxima?: CriterionMaxima | undefined;
 }) {
   const total = criteriaTotal(scores);
+  const outOf = totalPossible(maxima);
 
   return (
     <div>
@@ -162,12 +172,12 @@ export function ScoreSheet({
         <span className="hv-label">Marking criteria</span>
         <span className="font-display text-3xl leading-none font-black tabular-nums">
           {formatScore(total)}
-          <span className="text-muted-foreground"> / 10</span>
+          <span className="text-muted-foreground"> / {formatScore(outOf)}</span>
         </span>
       </div>
 
       <div className="mt-3 space-y-2">
-        {SCORE_CRITERIA.map((criterion) => (
+        {criteriaWithMax(maxima).map((criterion) => (
           <CriterionRow
             key={criterion.key}
             label={criterion.label}
@@ -263,13 +273,15 @@ export function EvaluateDialog({
                   Evaluation locked
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  You scored this team {formatScore(team.my_score ?? 0)} / 10. Scores cannot be
-                  changed once submitted.
+                  You scored this team {formatScore(team.my_score ?? 0)} /{" "}
+                  {formatScore(totalPossible(settings.maxima))}. Scores cannot be changed once
+                  submitted.
                 </p>
               </div>
             </div>
           ) : (
             <ScoreSheet
+              maxima={settings.maxima}
               scores={scores}
               onChange={(next) => {
                 setScores(next);
@@ -299,7 +311,10 @@ export function EvaluateDialog({
           {confirming ? (
             <p className="hv-mono mt-4 border-l-2 border-primary bg-primary/10 px-3 py-2.5 text-[11px]">
               You are about to give <span className="font-bold">{team.team_name}</span> a score of{" "}
-              <span className="font-bold">{formatScore(total)}/10</span>.
+              <span className="font-bold">
+                {formatScore(total)}/{formatScore(totalPossible(settings.maxima))}
+              </span>
+              .
               {team.evaluated
                 ? " This replaces your previous score."
                 : " This cannot be changed afterwards."}

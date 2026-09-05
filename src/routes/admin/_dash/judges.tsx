@@ -16,8 +16,14 @@ import {
   Toolbar,
 } from "@/components/hv/admin-chrome";
 import { adminJudgesQuery } from "@/lib/admin.queries";
-import { createJudge, resetJudgePassword, setJudgeStatus } from "@/lib/admin.functions";
+import {
+  createJudge,
+  resetJudgePassword,
+  setJudgeMaxima,
+  setJudgeStatus,
+} from "@/lib/admin.functions";
 import type { JudgeRow } from "@/lib/hackverse-types";
+import { CRITERION_HARD_MAX, SCORE_CRITERIA } from "@/lib/hackverse-types";
 import { formatStamp } from "@/lib/live";
 
 export const Route = createFileRoute("/admin/_dash/judges")({
@@ -48,6 +54,7 @@ function AdminJudges() {
   const runCreate = useServerFn(createJudge);
   const runStatus = useServerFn(setJudgeStatus);
   const runReset = useServerFn(resetJudgePassword);
+  const runMaxima = useServerFn(setJudgeMaxima);
 
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<CreateForm | null>(null);
@@ -55,6 +62,8 @@ function AdminJudges() {
   const [resetting, setResetting] = useState<JudgeRow | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<JudgeRow | null>(null);
+  const [limiting, setLimiting] = useState<JudgeRow | null>(null);
+  const [limits, setLimits] = useState<Record<string, string>>({});
 
   const rows = useMemo(() => (data ?? []).filter((j) => j.status !== "deleted"), [data]);
 
@@ -99,6 +108,26 @@ function AdminJudges() {
       toast.success("Judge updated");
     },
     onError: () => toast.error("Could not update this judge."),
+  });
+
+  const maxima = useMutation({
+    mutationFn: (input: {
+      id: string;
+      problem: number | null;
+      innovation: number | null;
+      technical: number | null;
+      presentation: number | null;
+    }) => runMaxima({ data: input }),
+    onSuccess: async (result) => {
+      if (!result.ok) {
+        toast.error(result.message ?? "Could not save these limits.");
+        return;
+      }
+      await refresh();
+      setLimiting(null);
+      toast.success("Judge mark limits saved");
+    },
+    onError: () => toast.error("Could not save these limits."),
   });
 
   const reset = useMutation({
@@ -216,6 +245,31 @@ function AdminJudges() {
                           className="hv-mono border border-border-strong px-2.5 py-1.5 text-[10px] font-bold tracking-widest uppercase transition-colors hover:bg-accent disabled:opacity-40"
                         >
                           {judge.status === "active" ? "Disable" : "Enable"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLimits({
+                              problem:
+                                judge.maxima.problem === null ? "" : String(judge.maxima.problem),
+                              innovation:
+                                judge.maxima.innovation === null
+                                  ? ""
+                                  : String(judge.maxima.innovation),
+                              technical:
+                                judge.maxima.technical === null
+                                  ? ""
+                                  : String(judge.maxima.technical),
+                              presentation:
+                                judge.maxima.presentation === null
+                                  ? ""
+                                  : String(judge.maxima.presentation),
+                            });
+                            setLimiting(judge);
+                          }}
+                          className="hv-mono border border-border-strong px-2.5 py-1.5 text-[10px] font-bold tracking-widest uppercase transition-colors hover:bg-accent"
+                        >
+                          Marks
                         </button>
                         <button
                           type="button"
@@ -366,6 +420,70 @@ function AdminJudges() {
               </ActionButton>
             </footer>
           </form>
+        </div>
+      ) : null}
+
+      {/* ------------------------------------------------ per-judge limits */}
+      {limiting ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 p-4 backdrop-blur-sm">
+          <div className="hv-panel w-full max-w-lg" role="dialog" aria-modal="true">
+            <header className="border-b border-border px-5 py-4">
+              <p className="hv-label">Mark limits</p>
+              <h2 className="font-display mt-1.5 text-xl font-black tracking-tight uppercase">
+                {limiting.name}
+              </h2>
+              <p className="hv-mono mt-1.5 text-[11px] text-muted-foreground">
+                {limiting.username}
+              </p>
+            </header>
+            <div className="px-5 py-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {SCORE_CRITERIA.map((criterion) => (
+                  <label key={criterion.key} className="block">
+                    <span className="hv-label mb-2 block">{criterion.label}</span>
+                    <input
+                      type="number"
+                      value={limits[criterion.key] ?? ""}
+                      onChange={(e) => setLimits({ ...limits, [criterion.key]: e.target.value })}
+                      min={0}
+                      max={CRITERION_HARD_MAX}
+                      step={0.5}
+                      placeholder="Event default"
+                      className="hv-mono w-full border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="hv-mono mt-4 border-l-2 border-border-strong bg-surface-raised px-3 py-2.5 text-[10px] text-muted-foreground">
+                Leave a field blank to follow the event default set in Evaluation Settings. These
+                limits apply only to this judge.
+              </p>
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-border px-5 py-4">
+              <ActionButton variant="outline" onClick={() => setLimiting(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                disabled={maxima.isPending}
+                onClick={() => {
+                  const parse = (key: string) => {
+                    const raw = (limits[key] ?? "").trim();
+                    return raw === "" ? null : Number(raw);
+                  };
+                  maxima.mutate({
+                    id: limiting.id,
+                    problem: parse("problem"),
+                    innovation: parse("innovation"),
+                    technical: parse("technical"),
+                    presentation: parse("presentation"),
+                  });
+                }}
+              >
+                {maxima.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                Save limits
+              </ActionButton>
+            </footer>
+          </div>
         </div>
       ) : null}
 

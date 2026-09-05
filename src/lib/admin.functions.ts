@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+import { CRITERION_HARD_MAX } from "./hackverse-types";
+
 import {
   allotProblemStatementCore,
   assertAdmin,
@@ -174,6 +176,7 @@ import {
   freezeLeaderboardCore,
   resetAllScoresCore,
   resetJudgePasswordCore,
+  setJudgeMaximaCore,
   setJudgeStatusCore,
   updateEvaluationSettingsCore,
 } from "./judging.server";
@@ -306,12 +309,10 @@ export const adminUpdateEvaluation = createServerFn({ method: "POST" })
     z
       .object({
         id: z.string().uuid(),
-        // Same ceilings the judge form uses; the CHECK constraints per column
-        // remain the final authority.
-        problem: z.number().min(0).max(2),
-        innovation: z.number().min(0).max(3),
-        technical: z.number().min(0).max(3),
-        presentation: z.number().min(0).max(2),
+        problem: z.number().min(0).max(CRITERION_HARD_MAX),
+        innovation: z.number().min(0).max(CRITERION_HARD_MAX),
+        technical: z.number().min(0).max(CRITERION_HARD_MAX),
+        presentation: z.number().min(0).max(CRITERION_HARD_MAX),
       })
       .parse(data),
   )
@@ -380,10 +381,12 @@ export const adminAddMarks = createServerFn({ method: "POST" })
     z
       .object({
         teamCode: z.string().trim().min(1).max(40),
-        problem: z.number().min(0).max(2),
-        innovation: z.number().min(0).max(3),
-        technical: z.number().min(0).max(3),
-        presentation: z.number().min(0).max(2),
+        // Sanity bounds only; adminAddMarksCore applies the configured
+        // ceilings, which an organiser can change.
+        problem: z.number().min(0).max(CRITERION_HARD_MAX),
+        innovation: z.number().min(0).max(CRITERION_HARD_MAX),
+        technical: z.number().min(0).max(CRITERION_HARD_MAX),
+        presentation: z.number().min(0).max(CRITERION_HARD_MAX),
       })
       .parse(data),
   )
@@ -414,4 +417,32 @@ export const resetAllScores = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await assertAdmin(context.supabase, context.userId);
     return resetAllScoresCore(context.claims.email ?? context.userId);
+  });
+
+/** Per-judge mark ceilings; null on a criterion falls back to the event default. */
+export const setJudgeMaxima = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        problem: z.number().min(0).max(CRITERION_HARD_MAX).nullable(),
+        innovation: z.number().min(0).max(CRITERION_HARD_MAX).nullable(),
+        technical: z.number().min(0).max(CRITERION_HARD_MAX).nullable(),
+        presentation: z.number().min(0).max(CRITERION_HARD_MAX).nullable(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context.supabase, context.userId);
+    return setJudgeMaximaCore(
+      data.id,
+      {
+        problem: data.problem,
+        innovation: data.innovation,
+        technical: data.technical,
+        presentation: data.presentation,
+      },
+      context.claims.email ?? context.userId,
+    );
   });

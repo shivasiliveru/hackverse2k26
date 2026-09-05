@@ -7,7 +7,14 @@ import { toast } from "sonner";
 import { ActionButton, AdminLoading, DataPanel, Pill } from "./admin-chrome";
 import { adminEvaluationSettingsQuery } from "@/lib/admin.queries";
 import { updateEvaluationSettings } from "@/lib/admin.functions";
-import type { EvaluationStatus, RankingMethod } from "@/lib/hackverse-types";
+import type { CriterionMaxima, EvaluationStatus, RankingMethod } from "@/lib/hackverse-types";
+import {
+  CRITERION_HARD_MAX,
+  DEFAULT_MAXIMA,
+  SCORE_CRITERIA,
+  formatScore,
+  totalPossible,
+} from "@/lib/hackverse-types";
 import { cn } from "@/lib/utils";
 
 const STATUS_COPY: Record<EvaluationStatus, string> = {
@@ -38,6 +45,7 @@ export function EvaluationSettingsPanels() {
   const [publicBoard, setPublicBoard] = useState(false);
   const [seeOthers, setSeeOthers] = useState(false);
   const [maxJudges, setMaxJudges] = useState("");
+  const [maxima, setMaxima] = useState<CriterionMaxima>(DEFAULT_MAXIMA);
 
   useEffect(() => {
     if (!data) return;
@@ -50,6 +58,7 @@ export function EvaluationSettingsPanels() {
     setPublicBoard(data.leaderboard_public);
     setSeeOthers(data.judges_see_others);
     setMaxJudges(data.max_judges === null ? "" : String(data.max_judges));
+    setMaxima(data.maxima);
   }, [data]);
 
   const save = useMutation({
@@ -65,6 +74,10 @@ export function EvaluationSettingsPanels() {
           leaderboard_public: publicBoard,
           judges_see_others: seeOthers,
           max_judges: maxJudges.trim() === "" ? null : Number(maxJudges),
+          max_problem: maxima.problem,
+          max_innovation: maxima.innovation,
+          max_technical: maxima.technical,
+          max_presentation: maxima.presentation,
         },
       }),
     onSuccess: async (result) => {
@@ -196,6 +209,34 @@ export function EvaluationSettingsPanels() {
             onChange={setSeeOthers}
           />
         </div>
+      </DataPanel>
+
+      <DataPanel
+        title="Marking Scheme"
+        hint={`Maximum marks per criterion — total ${formatScore(totalPossible(maxima))}`}
+      >
+        <div className="grid gap-4 px-4 py-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SCORE_CRITERIA.map((criterion) => (
+            <label key={criterion.key} className="block">
+              <span className="hv-label mb-2 block">{criterion.label}</span>
+              <input
+                type="number"
+                value={maxima[criterion.key]}
+                onChange={(e) => setMaxima({ ...maxima, [criterion.key]: Number(e.target.value) })}
+                min={0}
+                max={CRITERION_HARD_MAX}
+                step={0.5}
+                className="hv-mono w-full border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
+              />
+            </label>
+          ))}
+        </div>
+
+        <p className="hv-mono mx-4 mb-4 border-l-2 border-border-strong bg-surface-raised px-3 py-2.5 text-[10px] text-muted-foreground">
+          This is the event default. A judge can be given their own ceilings on the Judges page,
+          which override these. Lowering a maximum does not rewrite scores already recorded above it
+          — export first if that matters.
+        </p>
       </DataPanel>
 
       <DataPanel title="Leaderboard Settings" hint="Ranking method and public visibility">

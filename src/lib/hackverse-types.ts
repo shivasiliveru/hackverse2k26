@@ -158,13 +158,47 @@ export type JudgeStatus = "active" | "disabled" | "deleted";
 
 export const SCORE_MAX = 10;
 
-/** The official marking scheme. Maxima are mirrored by CHECK constraints. */
+/**
+ * The marking scheme. Labels are fixed; the maxima are configurable by the
+ * organiser, so anything that renders or validates a score must read them
+ * from settings via criteriaWithMax() rather than assuming these defaults.
+ */
 export const SCORE_CRITERIA = [
   { key: "problem", label: "Problem Understanding & Relevance", max: 2 },
   { key: "innovation", label: "Innovation & Creativity", max: 3 },
   { key: "technical", label: "Technical Implementation & Prototype", max: 3 },
   { key: "presentation", label: "Presentation & Feasibility", max: 2 },
 ] as const;
+
+/** Per-criterion ceilings as configured by the admin. */
+export interface CriterionMaxima {
+  problem: number;
+  innovation: number;
+  technical: number;
+  presentation: number;
+}
+
+export const DEFAULT_MAXIMA: CriterionMaxima = {
+  problem: 2,
+  innovation: 3,
+  technical: 3,
+  presentation: 2,
+};
+
+/** Hard ceiling per criterion, matching the database sanity constraint. */
+export const CRITERION_HARD_MAX = 100;
+
+export function criteriaWithMax(
+  maxima: CriterionMaxima,
+): { key: CriterionKey; label: string; max: number }[] {
+  return SCORE_CRITERIA.map((c) => ({ key: c.key, label: c.label, max: maxima[c.key] }));
+}
+
+export function totalPossible(maxima: CriterionMaxima): number {
+  return Number(
+    (maxima.problem + maxima.innovation + maxima.technical + maxima.presentation).toFixed(1),
+  );
+}
 
 export type CriterionKey = (typeof SCORE_CRITERIA)[number]["key"];
 
@@ -193,6 +227,7 @@ export interface EvaluationSettings {
   ranking_method: RankingMethod;
   judges_see_others: boolean;
   max_judges: number | null;
+  maxima: CriterionMaxima;
 }
 
 export interface JudgeRow {
@@ -210,6 +245,8 @@ export interface JudgeRow {
   min_score: number | null;
   max_score: number | null;
   last_activity: string | null;
+  /** null on a criterion means the judge uses the event default. */
+  maxima: { [K in keyof CriterionMaxima]: number | null };
 }
 
 /** One row of the judge's own team list — never carries other judges' scores. */
@@ -288,7 +325,9 @@ export const EVALUATION_ERROR_MESSAGES: Record<string, string> = {
 };
 
 export function scoreOptions(increment: number, max: number = SCORE_MAX): number[] {
-  const steps = Math.round(max / increment);
+  // Guard against a huge ceiling with a tiny increment producing thousands of
+  // buttons; beyond this the selector stops being usable anyway.
+  const steps = Math.min(200, Math.round(max / increment));
   return Array.from({ length: steps + 1 }, (_, i) => Number((i * increment).toFixed(1)));
 }
 

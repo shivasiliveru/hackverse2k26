@@ -2,9 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+import { CRITERION_HARD_MAX } from "./hackverse-types";
 import {
   fetchEvaluationSettings,
   fetchJudgeTeamsCore,
+  judgeMaxima,
   judgeWhoamiCore,
   requireJudge,
   submitEvaluationCore,
@@ -24,11 +26,14 @@ export const judgeTeams = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const judge = await requireJudge(context.userId);
-    const [teams, settings] = await Promise.all([
+    const [teams, settings, maxima] = await Promise.all([
       fetchJudgeTeamsCore(judge.id),
       fetchEvaluationSettings(),
+      judgeMaxima(judge.id),
     ]);
-    return { judge, teams, settings };
+    // Override with this judge's own ceilings so the score sheet shows
+    // exactly the marks they are allowed to give.
+    return { judge, teams, settings: { ...settings, maxima } };
   });
 
 export const submitEvaluation = createServerFn({ method: "POST" })
@@ -37,13 +42,13 @@ export const submitEvaluation = createServerFn({ method: "POST" })
     z
       .object({
         teamCode: z.string().trim().min(1).max(40),
-        // Per-criterion ceilings from the official marking scheme. The RPC and
-        // a CHECK per column enforce these again — §2 requires that the limit
-        // never rests on the frontend alone.
-        problem: z.number().min(0).max(2),
-        innovation: z.number().min(0).max(3),
-        technical: z.number().min(0).max(3),
-        presentation: z.number().min(0).max(2),
+        // Sanity bounds only. The per-criterion ceiling is configurable, so
+        // the authority is submit_evaluation reading event_settings, backed
+        // by the database sanity constraint — never the frontend.
+        problem: z.number().min(0).max(CRITERION_HARD_MAX),
+        innovation: z.number().min(0).max(CRITERION_HARD_MAX),
+        technical: z.number().min(0).max(CRITERION_HARD_MAX),
+        presentation: z.number().min(0).max(CRITERION_HARD_MAX),
       })
       .parse(data),
   )

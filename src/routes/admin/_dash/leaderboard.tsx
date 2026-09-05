@@ -26,7 +26,13 @@ import {
   freezeLeaderboard,
   resetAllScores,
 } from "@/lib/admin.functions";
-import { BLANK_CRITERIA, SCORE_CRITERIA, criteriaTotal, formatScore } from "@/lib/hackverse-types";
+import {
+  BLANK_CRITERIA,
+  SCORE_CRITERIA,
+  criteriaTotal,
+  formatScore,
+  totalPossible,
+} from "@/lib/hackverse-types";
 import type { CriterionScores, EvaluationLogRow, LeaderboardRow } from "@/lib/hackverse-types";
 import { downloadFile, formatStamp, toCsv } from "@/lib/live";
 import { cn } from "@/lib/utils";
@@ -539,6 +545,7 @@ function AdminLeaderboard() {
 
             <div className="px-5 py-4">
               <ScoreSheet
+                maxima={settings.maxima}
                 scores={marks}
                 onChange={(next) => {
                   setMarks(next);
@@ -571,7 +578,8 @@ function AdminLeaderboard() {
                 onClick={() => addMarks.mutate({ teamCode: marking.team_code, ...marks })}
               >
                 {addMarks.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                Save marks ({formatScore(criteriaTotal(marks))}/10)
+                Save marks ({formatScore(criteriaTotal(marks))}/
+                {formatScore(totalPossible(settings.maxima))})
               </ActionButton>
             </footer>
           </div>
