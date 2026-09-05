@@ -709,7 +709,10 @@ async function ensureOrganiserJudge(): Promise<{ id: string } | { error: string 
     .maybeSingle();
   if (existing) return { id: existing.id as string };
 
-  const password = `org-${crypto.randomUUID()}-${crypto.randomUUID()}`;
+  // One UUID, not two. bcrypt refuses anything over 72 bytes and Supabase Auth
+  // surfaces that as a bare 500, so a longer "more random" password made the
+  // whole action fail. 36 hex characters is ample for a password nobody types.
+  const password = `org-${crypto.randomUUID()}`;
   const created = await db.auth.admin.createUser({
     email: judgeEmail(ORGANISER_USERNAME),
     password,
@@ -717,7 +720,10 @@ async function ensureOrganiserJudge(): Promise<{ id: string } | { error: string 
     user_metadata: { organiser_entry: true },
   });
   if (created.error || !created.data.user) {
-    return { error: created.error?.message ?? "Could not create the organiser entry account." };
+    // Don't hand an organiser a raw upstream string like "Internal Server
+    // Error"; it tells them nothing about what to do.
+    console.error("organiser entry account creation failed", created.error);
+    return { error: "Could not prepare the organiser entry account. Please try again." };
   }
 
   const { data: row, error } = await db
