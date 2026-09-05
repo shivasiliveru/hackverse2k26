@@ -81,11 +81,11 @@ do $$ begin
   end if;
 end $$;
 
--- score is a generated column (the sum of the four); numeric(4,1) caps it at
--- 999.9, which is comfortably above four criteria at 100 each in practice but
--- widened here so a high ceiling cannot overflow it.
-alter table public.evaluations
-  alter column score type numeric(6,1);
+-- score stays numeric(4,1). It is a generated column that the leaderboard view
+-- reads, so Postgres refuses to alter its type without dropping the view — and
+-- there is no reason to: numeric(4,1) holds up to 999.9, while four criteria at
+-- the 100 hard cap total 400. Widening it would mean dropping and rebuilding
+-- the view for no gain.
 
 
 -- ============ EVALUATION RPC (reads the configured maxima) ============
